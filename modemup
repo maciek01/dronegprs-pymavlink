@@ -1,0 +1,3 @@
+if /home/pi/modemup file is present, drone code will proceed to initializing modem monitor on the first available USB port. otherwife it will continuasly wait.
+Create file by hand to break the wait loop.
+

@@ -1,0 +1,1 @@
+if /home/pi/wifi file is present, fona script will not shutdown wlan0 interface

@@ -1,0 +1,22 @@
+
+#921600
+lock
+passive
+novj
+defaultroute
+noipdefault
+usepeerdns
+noauth
+hide-password
+persist
+holdoff 10
+maxfail 0
+debug
+
+# No modem control lines with FONA.
+#modem
+local
+
+# No hardware flow control on the serial link with FONA
+#crtscts
+nocrtscts
