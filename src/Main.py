@@ -149,7 +149,7 @@ def reportPilotData():
 
 		"airSpeed" : gpsd.vel  if gpsd != None else None,
 		#"heading" : gpsd.yaw_deg if gpsd != None else None,
-		"heading" : pilot.globalPos.hdg if pilot.globalPos != None else None,
+		"heading" : pilot.globalPos.hdg / 100 if pilot.globalPos != None else None,
 		"cog" : gpsd.cog / 100 if gpsd != None else None,
 		"baroAlt" : pos.alt if pos != None else None,
 		"sonarAlt" : posGlobal.relative_alt / 1000 if posGlobal != None else None,
@@ -157,7 +157,7 @@ def reportPilotData():
 		#"status" : pilot.vehicle.system_status.state,
 		"status" : "N/A",
 		"mode" : pilot.flightMode,
-		"armed" : pilot.armedStatus,
+		"armed" : pilot.armed,
 
 		#5 sec reporting
 		"gpsNumSats" : gps1.satellites_visible if gps1 != None else None,
@@ -170,9 +170,9 @@ def reportPilotData():
 		"gps2HError" : gpsd.eph if gpsd != None else None,
 		"gps2VError" : gpsd.epv if gpsd != None else None,
 
-		"currVolts" : pilot.sysstatus.voltage_battery if pilot.sysstatus != None else None,
+		"currVolts" : pilot.sysstatus.voltage_battery / 1000 if pilot.sysstatus != None else None,
 		"currVoltsLevel" : pilot.battery.battery_remaining if pilot.battery != None else None,
-		"currA" : pilot.battery.current_battery if pilot.battery != None else None,
+		"currA" : pilot.battery.current_battery / 100 if pilot.battery != None else None,
 		"currTotmAh" : pilot.battery.current_consumed if pilot.battery != None else None,
 		"voltages" : pilot.battery.voltages if pilot.battery != None else None,
 
@@ -413,7 +413,7 @@ async def run():
 	while pilot.home == None:
 		log.info(f"Waiting for HOME location and good health")
 		await sendHeartbeat(log, unitID, videoChannel, http, url, headers)
-		asyncio.sleep(1)
+		asyncio.sleep(5)
 
 	log.info("Global position state is good enough for flying.")
 	await sendHeartbeat(log, unitID, videoChannel, http, url, headers)

@@ -440,7 +440,7 @@ async def takeoff(data):
 	
 		aTargetAltitude = operatingAlt
 
-		takeoff_params = [0, 0, 0, 0, 0, 0, aTargetAltitude]
+		takeoff_params = [0, 0, 0, 0, 0, 0, float(aTargetAltitude)]
 
 		try:
 			await arm(data)
@@ -725,7 +725,7 @@ async def resume(data):
 						the_connection.target_component,
 						mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
 						int(0b110111111000),
-						int(-float(requestedLat) * 10 ** 7),
+						int(float(requestedLat) * 10 ** 7),
 						int(float(requestedLon) * 10 ** 7),
 						float(operatingAlt), 0, 0, 0, 0, 0, 0, brg, 0.5))
 
@@ -909,7 +909,7 @@ async def goto(data):
 					the_connection.target_component,
 					mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
 					int(0b110111111000),
-					int(-float(requestedLat) * 10 ** 7),
+					int(float(requestedLat) * 10 ** 7),
 					int(float(requestedLon) * 10 ** 7),
 					float(operatingAlt), 0, 0, 0, 0, 0, 0, brg, 0.5))
 
@@ -968,8 +968,8 @@ async def setHome(data):
 		the_connection.mav.command_long_send(
 			the_connection.target_system, the_connection.target_component,
 			mavutil.mavlink.MAV_CMD_DO_SET_HOME,0,0,0,0,0,
-				int(-float(requestedLat) * 10 ** 7),
-				int(float(requestedLon) * 10 ** 7),0,)
+				int(float(lat) * 10 ** 7),
+				int(float(lon) * 10 ** 7),0,)
 
 		msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
 		log.info(f"SETHOME ACK:  {msg}")
