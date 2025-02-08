@@ -5,14 +5,14 @@ import sys, traceback
 import threading
 import time, datetime, json
 import asyncio
-from mavsdk import System
+from pymavlink import mavutil
 import numpy
 import math
+import threading
+
 
 
 current_milli_time = lambda: int(time.time() * 1000)
-
-task = None
 
 operatingAlt = 100
 operatingSpeed = 15
@@ -21,18 +21,21 @@ requestedLon = None
 savedLat = None
 savedLon = None
 
-vehicle = None
-vehicleLock = threading.RLock()
+
 URL = None
 BAUD = None
 log = None
 
 #monitoring tasks
 
-tasks = []
+vehicleLock = threading.RLock()
+
+task = None
+monitor_thread = None
+monitor_on = False
 
 #MAVLINK status
-curr_tot = 0
+'''curr_tot = 0
 voltages = None
 bat_percent = 0
 heading = 0
@@ -44,67 +47,144 @@ gps_data = None
 home = None
 mode = None
 armed = None
-connected = False
+connected = False'''
+
+
+#mavlink connection
+the_connection = None
+#messages
+gpsRaw = None
+globalPos = None
+home = None
+battery = None
+rangefinder = None
+statustext = None
+sysstatus = None
+heartbeat = None
+#calculated
+armed = None
+armedStatus	= None
+flightMode = None
+mavPosition = None
 
 
 
 ########################### STATE AND MESSAGE OBSERVERS ########################
 
 
-async def onPX4_mode(drone):
-	global mode
-	async for my_mode in drone.telemetry.flight_mode():
-		mode = str(my_mode)
+def setMessageFrequency(message_id, frequency):
+	global the_connection
+	message = the_connection.mav.command_long_encode(
+		the_connection.target_system,  # Target system ID
+		the_connection.target_component,  # Target component ID
+		mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,  # ID of command to send
+		0,  # Confirmation
+		message_id,  # param1: Message ID to be streamed
+		frequency, # param2: Interval in microseconds
+		0,  # param3 (unused)
+		0,  # param4 (unused)
+		0,  # param5 (unused)
+		0,  # param5 (unused)
+		0   # param6 (unused)
+	)
 
-async def onPX4_battery(drone):
-	global curr_tot
-	global voltages
-	global bat_percent
-	async for battery in drone.telemetry.battery():
-		bat_percent = battery.remaining_percent
-		voltages = battery.voltage_v
+	the_connection.mav.send(message)
 
-async def onPX4_heading(drone):
-	global heading
-	async for head in drone.telemetry.heading():
-		heading = head.heading_deg
+	# Wait for a response (blocking) to the MAV_CMD_SET_MESSAGE_INTERVAL command and print result
+	response = the_connection.recv_match(type='COMMAND_ACK', blocking=True)
+	if response and response.command == mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL and response.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+		log.info("Command accepted for message ID %d with frequency %d microseconds" % (message_id, frequency))
+	else:
+		log.info("Command failed for message ID %d" % message_id)
 
-async def onPX4_statusText(drone):
-	global statusMessage
-	global statusSev
-	async for status_text in drone.telemetry.status_text():
-		statusMessage = status_text.text
-		statusSev = status_text.type
 
-async def onPX4_gps_info(drone):
-	global gps_info
-	async for my_gps_info in drone.telemetry.gps_info():
-		gps_info = my_gps_info
 
-async def print_in_air(drone):
-	async for in_air in drone.telemetry.in_air():
-		print(f"In air: {in_air}")
+def telemMonitor():
 
-async def onPX4_position(drone):
-	global pos
-	async for my_position in drone.telemetry.position():
-		pos = my_position
+	global monitor_on
 
-async def onPX4_raw_gps(drone):
-        global gps_data
-        async for my_gps in drone.telemetry.raw_gps():
-                gps_data = my_gps
-
-async def onPX4_home(drone):
-        global home
-        async for my_home in drone.telemetry.home():
-                home = my_home
-
-async def onPX4_is_armed(drone):
+	global the_connection
+	global gpsRaw
+	global globalPos
+	global home
+	global battery
+	global rangefinder
+	global statustext
+	global sysstatus
+	global heartbeat
+	global flightMode
 	global armed
-	async for is_armed in drone.telemetry.armed():
-		armed = is_armed
+	global armedStatus
+	global mavPosition
 
+
+
+	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HOME_POSITION, 5000000)
+	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_GPS_RAW_INT, 1000000)
+	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT, 1000000)
+	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_BATTERY_STATUS, 5000000)
+	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_RANGEFINDER, 1000000)
+	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, 1000000)
+	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS, 1000000)
+	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HEARTBEAT, 1000000)
+
+
+	while monitor_on:
+		try:
+			time.sleep(1)
+			#print("Waiting for telem")
+			gpsRaw = the_connection.recv_match(type='GPS_RAW_INT', blocking=False)
+			globalPos = the_connection.recv_match(type='GLOBAL_POSITION_INT', blocking=False)
+			battery = the_connection.recv_match(type='BATTERY_STATUS', blocking=False)
+			home = the_connection.recv_match(type='HOME_POSITION', blocking=False)
+			rangefinder = the_connection.recv_match(type='RANGEFINDER', blocking=False)
+			statustext = the_connection.recv_match(type='STATUSTEXT', blocking=False)
+			sysstatus = the_connection.recv_match(type='SYS_STATUS', blocking=False)
+			heartbeat = the_connection.recv_match(type='HEARTBEAT', blocking=False)
+
+
+		except Exception as e:
+			log.info("error in monitor receive", e)
+
+		try:
+
+			if heartbeat is None:
+				heartbeat = getMessage('HEARTBEAT')
+			if sysstatus is None:
+				sysstatus = getMessage('SYS_STATUS')
+			if statustext is None:
+				statustext = getMessage('STATUSTEXT')
+			if rangefinder is None:
+				rangefinder = getMessage('RANGEFINDER')
+			if home is None:
+				home = getMessage('HOME_POSITION')
+			if battery is None:
+				battery = getMessage('BATTERY_STATUS')
+			if globalPos is None:
+				globalPos = getMessage('GLOBAL_POSITION_INT')
+			if gpsRaw is None:
+				gpsRaw = getMessage('GPS_RAW_INT')
+
+
+			flightMode = the_connection.flightmode
+			armed = bool(the_connection.motors_armed())
+			if armed:
+				armedStatus = "ARMED"
+			else:
+				armedStatus = "DISARMED"
+			mavPosition = the_connection.location()
+
+		except Exception as e:
+			log.info("error in monitor get", e)
+
+
+def getMessage(msg):
+	global the_connection
+
+	try:
+		return the_connection.messages[msg]
+	except:
+		return None
 
 
 ########################### THREAD HELPERS #####################################
@@ -118,79 +198,52 @@ def unlockV():
 async def initVehicle():
 	global URL
 	global BAUD
-	global vehicle
-	global tasks
+	global the_connection
 	global log
+	global monitor_thread
+	global monitor_on
 
 
 	lockV()
 	try:
-		if vehicle != None:
-			for task in tasks:
-				try:
-					task.cancel()
-				except:
-					log.info("ERROR WHEN CANCELLING A TASK")
-
-			tasks = []
-			#close vehicle
+		if monitor_thread != None:
 			try:
-				vehicle.close()
-				vehicle = None
-			except Exception as inst:
-				vehicle = None
+				monitor_on = False
+				monitor_thread.join()
+				monitor_thread = None
+			except:
+				log.info("ERROR WHEN CANCELLING A TASK")
 
-		#open vehicle
+			#close conn
+			try:
+				the_connection = None
+			except Exception as inst:
+				the_connection = None
+
+		#open conn
 
 		while vehicle == None:
 			try:
 				# Init the drone
 
-				#PX4
-				_vehicle = System()
-				#await _vehicle.connect(system_address="udp://:14540")
-				log.info("calling connect " + URL)
-				await _vehicle.connect(system_address=URL)
-				log.info("connect accepted " + URL)
+				# Start a connection listening to a UDP port
+				the_connection = mavutil.mavlink_connection(URL)
 
-				log.info("Waiting for drone to connect...")
-				async for state in _vehicle.core.connection_state():
-					if state.is_connected:
-						connected = True
-						log.info(f"Connected to vehicle")
-						break
-				log.info("Connected via " + URL)
-				vehicle = _vehicle
+				# Wait for the first heartbeat
+				#   This sets the system and component ID of remote system for the link
+				the_connection.wait_heartbeat()
+				log.info("Heartbeat from system (system %u component %u)" %
+					(the_connection.target_system, the_connection.target_component))
+
 
 
 			except Exception as inst:
-				vehicle = None
+				the_connection = None
 				traceback.print_exc()
 				await asyncio.sleep(5)
 
 
 		#register listeners
-
-		await vehicle.telemetry.set_rate_position(1)
-		await vehicle.telemetry.set_rate_in_air(1)
-		await vehicle.telemetry.set_rate_landed_state(1)
-		await vehicle.telemetry.set_rate_battery(5)
-		await vehicle.telemetry.set_rate_gps_info(1)
-		await vehicle.telemetry.set_rate_home(5)
-
-
-		tasks.append(asyncio.create_task(onPX4_battery(vehicle)))
-		tasks.append(asyncio.create_task(onPX4_mode(vehicle)))
-		tasks.append(asyncio.create_task(onPX4_heading(vehicle)))
-		tasks.append(asyncio.create_task(onPX4_statusText(vehicle)))
-		tasks.append(asyncio.create_task(onPX4_gps_info(vehicle)))
-		#tasks.append(asyncio.create_task(print_in_air(vehicle)))
-		tasks.append(asyncio.create_task(onPX4_position(vehicle)))
-		#asyncio.ensure_future(onPX4_position(vehicle))
-		tasks.append(asyncio.create_task(onPX4_raw_gps(vehicle)))
-		tasks.append(asyncio.create_task(onPX4_home(vehicle)))
-		tasks.append(asyncio.create_task(onPX4_is_armed(vehicle)))
-
 
 
 	finally:
@@ -202,7 +255,9 @@ async def initVehicle():
 
 async def pilotMonitor():
 
-	global vehicle
+	global the_connection
+	global monitor_thread
+	global monitor_on
 	global log
 
 	#wait to initialize the pilot
@@ -210,22 +265,17 @@ async def pilotMonitor():
 
 	await initVehicle()
 
+	monitor_on = True
+	monitor_thread = threading.Thread(target=telemMonitor, args=())
+	monitor_thread.daemon = True
+	monitor_thread.start()
+
 	#read loop
 
 	while True:
 		try:
 			await asyncio.sleep(1)
-
-			async for state in vehicle.core.connection_state():
-				connected = state.is_connected
-				if not state.is_connected:
-					log.info(f"Disconnected from vehicle")
-					break
-
-			#if not connected:
-			#	log.info("REINIT VEHICLE CONNECTION")
-			#	await initVehicle()
-
+			#check if the_connection is still alive
 		except Exception as inst:
 			#traceback.print_exc()
 			await initVehicle()
@@ -237,8 +287,10 @@ async def pilotMonitor():
 async def pilotinit(_log, url, baud):
 	global URL
 	global BAUD
-	global task
+	global monitor_thread
+	global monitor_on
 	global log
+	global task
 
 	log = _log
 
@@ -246,6 +298,8 @@ async def pilotinit(_log, url, baud):
 	BAUD = baud
 
 	task = asyncio.create_task(coro=pilotMonitor(), name="pilot")
+	await asyncio.sleep(1)
+
 
 ############################ LOACAL FUNCs     ##################################
 
@@ -254,18 +308,22 @@ def get_bearing(lat1, long1, lat2, long2):
 	x = math.cos(math.radians(lat2)) * math.sin(math.radians(dLon))
 	y = math.cos(math.radians(lat1)) * math.sin(math.radians(lat2)) - math.sin(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.cos(math.radians(dLon))
 	brng = numpy.arctan2(x,y)
-	brng = numpy.degrees(brng)
 
 	return brng
 
+def get_bearingDeg(lat1, long1, lat2, long2):
+	brng = numpy.degrees(get_bearing(lat1, long1, lat2, long2))
 
+	return brng
 
 ############################ COMMAND HANDLERS ##################################
 
 async def arm(data):
 
-	global vehicle
+	global the_connection
 	global log
+	global savedLat
+	global savedLon
 
 	lockV()
 
@@ -273,7 +331,15 @@ async def arm(data):
 		log.info("ARM")
 
 		try:
-			await vehicle.action.arm()
+
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+				0, 1, 0, 0, 0, 0, 0, 0)
+			
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"Arm ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 
@@ -290,15 +356,25 @@ async def arm(data):
 
 async def disarm(data):
 
-	global vehicle
+	global the_connection
 	global log
+	global savedLat
+	global savedLon
 
 	lockV()
 	try:
 		log.info("DISARM")
 			
 		try:
-			await vehicle.action.disarm()
+
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+				0, 0, 0, 0, 0, 0, 0, 0)
+			
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"Disarm ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 		await releaseSticks()
@@ -314,19 +390,59 @@ async def disarm(data):
 		unlockV()
 
 
+
+async def guided(data):
+
+	global the_connection
+	global log
+
+	lockV()
+	try:
+		log.info("GUIDED")
+			
+		try:
+
+			mode_id = the_connection.mode_mapping()["GUIDED"]
+
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+				0, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mode_id, 0, 0, 0, 0, 0)
+			
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"GUIDED ACK:  {msg}")
+
+		except:
+			traceback.print_exc()
+			
+		log.info(" is guided")
+		return "OK"	
+		
+	finally:
+		unlockV()
+
+
+
+
 async def takeoff(data):
 
-	global vehicle
+	global the_connection
 	global log
+	global operatingAlt
+	global armed
+	global savedLat
+	global savedLon
 
 	lockV()
 	try:
 	
 		aTargetAltitude = operatingAlt
 
-		#request and wait for the arm thread to be armed	
+		takeoff_params = [0, 0, 0, 0, 0, 0, aTargetAltitude]
+
 		try:
 			await arm(data)
+			await guided(data)
 		except:
 			traceback.print_exc()
 
@@ -341,9 +457,15 @@ async def takeoff(data):
 			log.info(" NOT ARMED")
 			return "ERROR: NOT ARMED IN 10 secs"
 			
-		await vehicle.action.set_takeoff_altitude(float(aTargetAltitude))
 		try:
-			await vehicle.action.takeoff()
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+				0, takeoff_params[0], takeoff_params[1], takeoff_params[2], takeoff_params[3],
+				takeoff_params[4], takeoff_params[5], takeoff_params[6])
+			
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"TAKEOFF ACK:  {msg}")
 		except:
 			traceback.print_exc()
 		await releaseSticks()
@@ -361,7 +483,7 @@ async def takeoff(data):
 
 async def land(data):
 
-	global vehicle
+	global the_connection
 	global requestedLat
 	global requestedLon
 	global savedLat
@@ -376,7 +498,14 @@ async def land(data):
 			#return "ERROR: NOT ARMED"
 			
 		try:
-			await vehicle.action.land()
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_NAV_LAND, 
+				0, 0, 0, 0, 0, 0, 0, 0)
+			
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"LAND ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 
@@ -397,7 +526,7 @@ async def land(data):
 
 async def position(data):
 
-	global vehicle
+	global the_connection
 	global requestedLat
 	global requestedLon
 	global savedLat
@@ -410,7 +539,17 @@ async def position(data):
 			
 		await centerSticks()
 		try:
-			await vehicle.action.hold()
+
+			mode_id = the_connection.mode_mapping()["POSHOLD"]
+
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+				0, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mode_id, 0, 0, 0, 0, 0)
+			
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"HOLD ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 		
@@ -420,6 +559,8 @@ async def position(data):
 		requestedLat = None
 		requestedLon = None
 		
+
+		log.info(" holding position")
 			
 		return "OK"
 
@@ -429,7 +570,7 @@ async def position(data):
 
 async def loiter(data):
 
-	global vehicle
+	global the_connection
 	global requestedLat
 	global requestedLon
 	global savedLat
@@ -442,7 +583,17 @@ async def loiter(data):
 			
 		await centerSticks()
 		try:
-			await vehicle.action.hold()
+
+			mode_id = the_connection.mode_mapping()["LOITER"]
+
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+				0, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mode_id, 0, 0, 0, 0, 0)
+			
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"LOITER ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 		
@@ -452,6 +603,7 @@ async def loiter(data):
 		requestedLat = None
 		requestedLon = None
 		
+		log.info(" loitering")
 			
 		return "OK"
 
@@ -460,7 +612,7 @@ async def loiter(data):
 
 async def auto(data):
 
-	global vehicle
+	global the_connection
 	global requestedLat
 	global requestedLon
 	global savedLat
@@ -473,7 +625,18 @@ async def auto(data):
 			
 		await releaseSticks()
 		try:
-			await vehicle.mission.start_mission()
+			#await vehicle.mission.start_mission()
+
+			mode_id = the_connection.mode_mapping()["AUTO"]
+
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+				0, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mode_id, 0, 0, 0, 0, 0)
+			
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"AUTO ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 		
@@ -483,7 +646,9 @@ async def auto(data):
 		requestedLat = None
 		requestedLon = None
 		
-			
+		
+		log.info(" on auto mission")
+
 		return "OK"
 
 	finally:
@@ -491,7 +656,7 @@ async def auto(data):
 		
 async def pause(data):
 
-	global vehicle
+	global the_connection
 	global log
 	
 	lockV()
@@ -502,12 +667,23 @@ async def pause(data):
 		if True:
 			#just loiter
 			try:
-				await vehicle.action.hold()
+
+				mode_id = the_connection.mode_mapping()["LOITER"]
+
+				the_connection.mav.command_long_send(
+					the_connection.target_system, the_connection.target_component,
+					mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+					0, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mode_id, 0, 0, 0, 0, 0)
+				
+				msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+				log.info(f"LOITER ACK:  {msg}")
+
 			except:
 				traceback.print_exc()
-
-		
 			
+
+		log.info(" paused")
+
 		return "OK"
 
 	finally:
@@ -515,8 +691,8 @@ async def pause(data):
 
 async def resume(data):
 
-	global vehicle
-	global pos
+	global the_connection
+	global mavPosition
 	global home
 	global requestedLat
 	global requestedLon
@@ -532,19 +708,38 @@ async def resume(data):
 		if savedLat != None and savedLon != None:
 			requestedLat = savedLat
 			requestedLon = savedLon
-			#vehicle.mode = VehicleMode("GUIDED")
 
+			await guided(data)
 
-			brg = get_bearing(pos.latitude_deg, pos.longitude_deg, float(requestedLat), float(requestedLon))
+			brg = get_bearing(mavPosition.lat, mavPosition.lng, float(requestedLat), float(requestedLon))
 
 
 			try:
-				await vehicle.action.goto_location(float(requestedLat), float(requestedLon), float(home.absolute_altitude_m) + float(operatingAlt), float(brg))
+
+				the_connection.mav.send(
+					mavutil.mavlink.MAVLink_set_position_target_global_int_message(
+						10, the_connection.target_system,
+						the_connection.target_component,
+						mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+						int(0b110111111000),
+						int(-float(requestedLat) * 10 ** 7),
+						int(float(requestedLon) * 10 ** 7),
+						float(operatingAlt), 0, 0, 0, 0, 0, 0, brg, 0.5))
+
+				msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+				log.info(f"GOTO ACK:  {msg}")
+
 			except:
 				traceback.print_exc()
 
 			try:
-				await vehicle.action.set_current_speed(float(operatingSpeed))
+				the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,0,1,float(operatingSpeed),0,0,0,0,0,)
+
+				msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+				log.info(f"SPD ACK:  {msg}")
+
 			except:
 				traceback.print_exc()
 
@@ -553,6 +748,7 @@ async def resume(data):
 			savedLon = None
 			await releaseSticks()
 		
+		log.info(" resuming")
 			
 		return "OK"
 
@@ -562,18 +758,31 @@ async def resume(data):
 #release channel overrides
 async def manual(data):
 
-	global vehicle
+	global the_connection
 	global log
 	
 	lockV()
 	try:
 		log.info("MANUAL")
 		try:
-			await vehicle.action.hold()
+
+			mode_id = the_connection.mode_mapping()["LOITER"]
+
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+				0, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mode_id, 0, 0, 0, 0, 0)
+			
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"LOITER ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 
 		await releaseSticks()
+
+		log.info(" manual control")
+
 		return "OK"
 
 	finally:
@@ -585,9 +794,16 @@ async def reHome(data):
 	
 	lockV()
 	try:
-		log.info("REHOME - not supported")
+		log.info("REHOME")
 
-		#vehicle.home_location=vehicle.location.global_frame
+		the_connection.mav.command_long_send(
+			the_connection.target_system, the_connection.target_component,
+			mavutil.mavlink.MAV_CMD_DO_SET_HOME,0,1,0,0,0,0,0,0,)
+
+		msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+		log.info(f"SETHOME ACK:  {msg}")
+
+		log.info(" rehoming")
 
 		return "OK"
 
@@ -596,7 +812,7 @@ async def reHome(data):
 		
 async def rtl(data):
 
-	global vehicle
+	global the_connection
 	global requestedLat
 	global requestedLon
 	global operatingSpeed
@@ -607,17 +823,30 @@ async def rtl(data):
 	lockV()
 	try:
 		log.info("RTL")
-		#if not armed:
-			#print " NOT ARMED"
-			#return "ERROR: NOT ARMED"
 
 		try:
-			await vehicle.action.return_to_launch()
+
+			mode_id = the_connection.mode_mapping()["RTL"]
+
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+				0, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mode_id, 0, 0, 0, 0, 0)
+			
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"RTL ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 
 		try:
-			await vehicle.action.set_current_speed(float(operatingSpeed))
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,0,1,float(operatingSpeed),0,0,0,0,0,)
+
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"SPD ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 
@@ -640,7 +869,7 @@ async def rtl(data):
 		
 async def goto(data):
 
-	global vehicle
+	global the_connection
 	global home
 	global operatingAlt
 	global requestedLat
@@ -665,16 +894,36 @@ async def goto(data):
 				lon = i['value']
 				requestedLon = lon
 
-		brg = get_bearing(pos.latitude_deg, pos.longitude_deg, float(requestedLat), float(requestedLon))
 
+		brg = get_bearing(mavPosition.lat, mavPosition.lng, float(requestedLat), float(requestedLon))
 
 		try:
-			await vehicle.action.goto_location(float(requestedLat), float(requestedLon), float(home.absolute_altitude_m) + float(operatingAlt), float(brg))
+
+			the_connection.mav.send(
+				mavutil.mavlink.MAVLink_set_position_target_global_int_message(
+					10, the_connection.target_system,
+					the_connection.target_component,
+					mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+					int(0b110111111000),
+					int(-float(requestedLat) * 10 ** 7),
+					int(float(requestedLon) * 10 ** 7),
+					float(operatingAlt), 0, 0, 0, 0, 0, 0, brg, 0.5))
+
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"GOTO ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 
 		try:
-			await vehicle.action.set_current_speed(float(operatingSpeed))
+
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,0,1,float(operatingSpeed),0,0,0,0,0,)
+
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"SPD ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 
@@ -685,18 +934,20 @@ async def goto(data):
 		savedLat = None
 		savedLon = None
 
-		log.info("going to ")
+		log.info(" going to ")
 		return "OK"
 
 	finally:
 		unlockV()
 
 async def setHome(data):
-	global vehicle
+	global the_connection
 	global log
+	lat = None
+	lon = None
 	lockV()
 	try:
-		log.info("SETHOME - not supported")
+		log.info("SETHOME")
 		
 		parameters = data['command']['parameters']
 		
@@ -706,9 +957,20 @@ async def setHome(data):
 			if i['name'] == "lon":
 				lon = i['value']
 		
-		#point1 = LocationGlobal(float(lat), float(lon), vehicle.home_location.alt)
-		#if vehicle.home_location != None:
-		#	vehicle.home_location=point1
+		if lat == None or lon == None:
+			log.info("NO COORDS")
+			return "ERROR: NO COORDS"
+		
+		the_connection.mav.command_long_send(
+			the_connection.target_system, the_connection.target_component,
+			mavutil.mavlink.MAV_CMD_DO_SET_HOME,0,0,0,0,0,
+				int(-float(requestedLat) * 10 ** 7),
+				int(float(requestedLon) * 10 ** 7),0,)
+
+		msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+		log.info(f"SETHOME ACK:  {msg}")
+
+		log.info(" rehoming")
 
 		return "OK"
 
