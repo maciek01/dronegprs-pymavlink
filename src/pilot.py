@@ -736,13 +736,7 @@ async def resume(data):
 				traceback.print_exc()
 
 			try:
-				the_connection.mav.command_long_send(
-				the_connection.target_system, the_connection.target_component,
-				mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,0,1,float(operatingSpeed),0,0,0,0,0,)
-
-				msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-				log.info(f"SPD ACK:  {msg}")
-
+				res = sendSpeedMsg(float(operatingSpeed))
 			except:
 				traceback.print_exc()
 
@@ -801,7 +795,7 @@ async def reHome(data):
 
 		the_connection.mav.command_long_send(
 			the_connection.target_system, the_connection.target_component,
-			mavutil.mavlink.MAV_CMD_DO_SET_HOME,0,1,0,0,0,0,0,0,)
+			mavutil.mavlink.MAV_CMD_DO_SET_HOME,0,1,0,0,0,0,0,0)
 
 		msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
 		log.info(f"SETHOME ACK:  {msg}")
@@ -843,13 +837,7 @@ async def rtl(data):
 			traceback.print_exc()
 
 		try:
-			the_connection.mav.command_long_send(
-				the_connection.target_system, the_connection.target_component,
-				mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,0,1,float(operatingSpeed),0,0,0,0,0,)
-
-			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-			log.info(f"SPD ACK:  {msg}")
-
+			res = sendSpeedMsg(float(operatingSpeed))
 		except:
 			traceback.print_exc()
 
@@ -920,14 +908,7 @@ async def goto(data):
 			traceback.print_exc()
 
 		try:
-
-			the_connection.mav.command_long_send(
-				the_connection.target_system, the_connection.target_component,
-				mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,0,1,float(operatingSpeed),0,0,0,0,0,)
-
-			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-			log.info(f"SPD ACK:  {msg}")
-
+			res = sendSpeedMsg(float(operatingSpeed))
 		except:
 			traceback.print_exc()
 
@@ -947,6 +928,7 @@ async def goto(data):
 async def setHome(data):
 	global the_connection
 	global log
+	global home
 	lat = None
 	lon = None
 	lockV()
@@ -968,8 +950,9 @@ async def setHome(data):
 		the_connection.mav.command_long_send(
 			the_connection.target_system, the_connection.target_component,
 			mavutil.mavlink.MAV_CMD_DO_SET_HOME,0,0,0,0,0,
-				int(float(lat) * 10 ** 7),
-				int(float(lon) * 10 ** 7),0,)
+				float(lat),
+				float(lon),
+				home.altitude / 1000)
 
 		msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
 		log.info(f"SETHOME ACK:  {msg}")
@@ -985,8 +968,6 @@ async def setHome(data):
 async def alt(data):
 
 	global operatingAlt
-	global requestedLat
-	global requestedLon
 	global log
 	
 	lockV()
@@ -999,7 +980,7 @@ async def alt(data):
 			if i['name'] == "alt":
 				operatingAlt = i['value']
 
-				changeAlt(requestedLat, requestedLon, operatingAlt)
+				changeAlt(operatingAlt)
 		
 		log.info("new operating alt is now " + operatingAlt)
 		return "OK"
@@ -1010,15 +991,13 @@ async def alt(data):
 async def altAdjust(delta):
 
 	global operatingAlt
-	global requestedLat
-	global requestedLon
 	global log
 	
 	lockV()
 	try:
 		operatingAlt = str(max(int(operatingAlt) + delta, 0))
 		
-		await changeAlt(requestedLat, requestedLon, operatingAlt)
+		await changeAlt(operatingAlt)
 
 		log.info("adjusted operating alt is now " + operatingAlt)
 
@@ -1029,8 +1008,6 @@ async def altAdjust(delta):
 
 async def setToCurrAlt(data):
 	global operatingAlt
-	global requestedLat
-	global requestedLon
 	global globalPos
 	global log
 
@@ -1039,9 +1016,9 @@ async def setToCurrAlt(data):
 	try:
 		log.info("SETCURRALT")
 
-		operatingAlt = str(max(int(globalPos.relative_alt), 0))
+		operatingAlt = str(max(int(globalPos.relative_alt / 1000), 0))
 
-		await changeAlt(requestedLat, requestedLon, operatingAlt)
+		await changeAlt(operatingAlt)
 
 		log.info("adjusted operating alt is now " + operatingAlt)
 
@@ -1051,33 +1028,60 @@ async def setToCurrAlt(data):
 		unlockV()
 
 	
-async def changeAlt(requestedLat, requestedLon, relAlt):
+async def changeAlt(relAlt):
 
 	global the_connection
-	global home
 	global operatingAlt
-	global operatingSpeed
 
-	
-	if requestedLat != None and requestedLon != None:
-		#wont work in LOITER mode
+	#wont work in LOITER mode
+	try:
 
+		the_connection.mav.command_long_send(
+			the_connection.target_system, the_connection.target_component,
+			mavutil.mavlink.MAV_CMD_DO_CHANGE_ALTITUDE,
+			0,float(operatingAlt),
+			mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,0,0,0,0,0,)
 
-		try:
+		msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+		log.info(f"ALT ACK:  {msg}")
 
-			the_connection.mav.command_long_send(
-				the_connection.target_system, the_connection.target_component,
-				mavutil.mavlink.MAV_CMD_DO_CHANGE_ALTITUDE,
-				0,float(operatingAlt),
-				mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,0,0,0,0,0,)
+		#0 - SUCESS/ACCEPTED
+		#1 - TEMPORARY REJECTED
+		#2-  DENIED
+		#3 - COMMAND UNSUPPORTED
+		#4 - FAILED
+		#5 - IN PROGRESS
+		#more see https://mavlink.io/en/messages/common.html#MAV_RESULT
 
-			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-			log.info(f"ALT ACK:  {msg}")
+		return msg.result if msg != None else -1 #-1 is timeout
 
-		except:
-			traceback.print_exc()
+	except:
+		traceback.print_exc()
 
+	return -1
 
+def sendSpeedMsg(spd):
+	global the_connection
+	global log
+
+	log.info("sending :  MAV_CMD_DO_CHANGE_SPEED: " + str(spd))
+
+	the_connection.mav.command_long_send(
+	the_connection.target_system, the_connection.target_component,
+	mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,0,1,spd,0,0,0,0,0,)
+
+	msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+	log.info(f"SPD ACK:  {msg}")
+
+	#0 - SUCESS/ACCEPTED
+	#1 - TEMPORARY REJECTED
+	#2-  DENIED
+	#3 - COMMAND UNSUPPORTED
+	#4 - FAILED
+	#5 - IN PROGRESS
+	#more see https://mavlink.io/en/messages/common.html#MAV_RESULT
+
+	return msg.result if msg != None else -1 #-1 is timeout
 
 async def speed(data):
 
@@ -1093,19 +1097,14 @@ async def speed(data):
 		
 		for i in parameters:
 			if i['name'] == "speed":
-				operatingSpeed = i['value']
+				spd = i['value']
 
-				the_connection.mav.command_long_send(
-					the_connection.target_system, the_connection.target_component,
-					mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,0,1,float(operatingSpeed),0,0,0,0,0,)
-
-				msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-				log.info(f"SPD ACK:  {msg}")
-
-		
-		log.info(" operating speed is now " + operatingSpeed)
-		return "OK"
-
+				res = sendSpeedMsg(float(spd))
+				if res == 0:
+					operatingSpeed = spd
+					log.info(" operating speed is now " + operatingSpeed)
+					return "OK"
+		return "FAILED"
 	finally:
 		unlockV()
 		
@@ -1116,18 +1115,15 @@ async def speedAdjust(delta):
 	
 	lockV()
 	try:
-		operatingSpeed = str(max(min(int(operatingSpeed) + delta, 20), 1))
+		spd = str(max(min(int(operatingSpeed) + delta, 20), 1))
 
-		the_connection.mav.command_long_send(
-			the_connection.target_system, the_connection.target_component,
-			mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,0,1,float(operatingSpeed),0,0,0,0,0,)
+		res = sendSpeedMsg(float(spd))
+		if res == 0:
+			operatingSpeed = spd
+			log.info(" operating speed is now " + operatingSpeed)
+			return "OK"
 
-		msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-		log.info(f"SPD ACK:  {msg}")
-		
-		log.info(" operating speed is now " + operatingSpeed)
-		
-		return "OK"
+		return "FAILED"
 
 	finally:
 		unlockV()

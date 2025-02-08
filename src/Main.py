@@ -2,6 +2,7 @@
 
 import httplib2
 import requests
+import time
 import json
 import socket
 import sys
@@ -141,13 +142,13 @@ def reportPilotData():
 		"operatingAlt" : pilot.operatingAlt,
 		"operatingSpeed" : pilot.operatingSpeed,
 
-		"gpsSpeed" : gpsd.vel  if gpsd != None else None,
+		"gpsSpeed" : gpsd.vel / 100  if gpsd != None else None,
 		"gpsTime" : gpsd.time_usec if gpsd != None else None,
 		"gpsStatus" : "none",
 		#"gpsLastStatusMS" : pilot.current_milli_time() - pilot.vehicle.last_heartbeat,
 		"gpsLastStatusMS" : "N/A",
 
-		"airSpeed" : gpsd.vel  if gpsd != None else None,
+		"airSpeed" : gpsd.vel / 100 if gpsd != None else None,
 		#"heading" : gpsd.yaw_deg if gpsd != None else None,
 		"heading" : pilot.globalPos.hdg / 100 if pilot.globalPos != None else None,
 		"cog" : gpsd.cog / 100 if gpsd != None else None,
@@ -413,7 +414,8 @@ async def run():
 	while pilot.home == None:
 		log.info(f"Waiting for HOME location and good health")
 		await sendHeartbeat(log, unitID, videoChannel, http, url, headers)
-		asyncio.sleep(5)
+		await asyncio.sleep(1)
+		#time.sleep(1)
 
 	log.info("Global position state is good enough for flying.")
 	await sendHeartbeat(log, unitID, videoChannel, http, url, headers)
