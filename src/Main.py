@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
-import httplib2, requests
+import httplib2
+import requests
 import json
 import socket
-import sys, traceback
+import sys
+import traceback
 import gps, pilot, modem, video_manager
 import command_processor
 import argparse
@@ -92,28 +94,33 @@ def reportPilotData():
 	global videoChannel
 	global mavlinkPort
 
-	if pilot.vehicle == None or mavlinkPort == "":
+	if pilot.the_connection == None or mavlinkPort == "":
 		return None
 	
 	try:
-		pilot.gps_info
-		gps1 = pilot.gps_info
+		pilot.gpsRaw
+		gps1 = pilot.gpsRaw
 	except Exception:
 		gps1 = None
 	
 	try:
-		pilot.gps_data
-		gpsd = pilot.gps_data
+		pilot.gpsRaw
+		gpsd = pilot.gpsRaw
 	except Exception:
 		gpsd = None
 	
 	try:
-		pilot.pos
-		pos = pilot.pos
+		pilot.mavPosition
+		pos = pilot.mavPosition
 	except Exception:
 		pos = None
 	
-	
+	try:
+		pilot.globalPos
+		posGlobal = pilot.globalPos
+	except Exception:
+		posGlobal = None
+
 	data = {
 		#1s reporting
 		"unitId" : unitID,
@@ -121,61 +128,61 @@ def reportPilotData():
 
 		"stateTimestampMS" : pilot.current_milli_time(),
 		"gpsLatLon" : "",
-		"gpsLat" : pos.latitude_deg if pos != None else None,
-		"gpsLon" : pos.longitude_deg if pos != None else None,
-		"gpsAlt" : pos.absolute_altitude_m if pos != None else None,
-		"gpsAltRel" : pilot.pos.relative_altitude_m if pos != None else None,
+		"gpsLat" : pos.lat if pos != None else None,
+		"gpsLon" : pos.lng if pos != None else None,
+		"gpsAlt" : pos.alt if pos != None else None,
+		"gpsAltRel" : posGlobal.relative_alt / 1000 if posGlobal != None else None,
 
 		"homeLatLon" : "",
-		"homeLat" : pilot.home.latitude_deg if pilot.home != None else None,
-		"homeLon" : pilot.home.longitude_deg if pilot.home != None else None,
-		"homeAlt" : pilot.home.absolute_altitude_m if pilot.home != None else None,
+		"homeLat" : pilot.home.latitude / 10 ** 7 if pilot.home != None else None,
+		"homeLon" : pilot.home.longitude / 10 ** 7 if pilot.home != None else None,
+		"homeAlt" : pilot.home.altitude / 1000 if pilot.home != None else None,
 		
 		"operatingAlt" : pilot.operatingAlt,
 		"operatingSpeed" : pilot.operatingSpeed,
 
-		"gpsSpeed" : gpsd.velocity_m_s  if gpsd != None else None,
-		"gpsTime" : "none",
+		"gpsSpeed" : gpsd.vel  if gpsd != None else None,
+		"gpsTime" : gpsd.time_usec if gpsd != None else None,
 		"gpsStatus" : "none",
 		#"gpsLastStatusMS" : pilot.current_milli_time() - pilot.vehicle.last_heartbeat,
 		"gpsLastStatusMS" : "N/A",
 
-		"airSpeed" : gpsd.velocity_m_s if gpsd != None else None,
+		"airSpeed" : gpsd.vel  if gpsd != None else None,
 		#"heading" : gpsd.yaw_deg if gpsd != None else None,
-		"heading" : pilot.heading,
-		"cog" : gpsd.cog_deg if gpsd != None else None,
-		"baroAlt" : gpsd.absolute_altitude_m if gpsd != None else None,
-		"sonarAlt" : pos.relative_altitude_m if pos != None else None,
-		"lidarAlt" : pos.relative_altitude_m if pos != None else None,
+		"heading" : pilot.globalPos.hdg if pilot.globalPos != None else None,
+		"cog" : gpsd.cog / 100 if gpsd != None else None,
+		"baroAlt" : pos.alt if pos != None else None,
+		"sonarAlt" : posGlobal.relative_alt / 1000 if posGlobal != None else None,
+		"lidarAlt" : posGlobal.relative_alt / 1000 if posGlobal != None else None,
 		#"status" : pilot.vehicle.system_status.state,
 		"status" : "N/A",
-		"mode" : pilot.mode,
-		"armed" : pilot.armed,
+		"mode" : pilot.flightMode,
+		"armed" : pilot.armedStatus,
 
 		#5 sec reporting
-		"gpsNumSats" : gps1.num_satellites if gps1 != None else None,
+		"gpsNumSats" : gps1.satellites_visible if gps1 != None else None,
 		"gpsLock" : str(gps1.fix_type) if gps1 != None else None,
-		"gpsHError" : gpsd.horizontal_uncertainty_m if gpsd != None else None,
-		"gpsVError" : gpsd.vertical_uncertainty_m if gpsd != None else None,
+		"gpsHError" : gpsd.eph if gpsd != None else None,
+		"gpsVError" : gpsd.epv if gpsd != None else None,
 
-		"gps2NumSats" : gps1.num_satellites if gps1 != None else None,
+		"gps2NumSats" : gps1.satellites_visible if gps1 != None else None,
 		"gps2Lock" : str(gps1.fix_type) if gps1 != None else None,
-		"gps2HError" : gpsd.horizontal_uncertainty_m if gpsd != None else None,
-		"gps2VError" : gpsd.vertical_uncertainty_m if gpsd != None else None,
+		"gps2HError" : gpsd.eph if gpsd != None else None,
+		"gps2VError" : gpsd.epv if gpsd != None else None,
 
-		"currVolts" : pilot.voltages,
-		"currVoltsLevel" : pilot.bat_percent,
-		"currA" : 0,
-		"currTotmAh" : pilot.curr_tot,
-		"voltages" : pilot.voltages,
+		"currVolts" : pilot.sysstatus.voltage_battery if pilot.sysstatus != None else None,
+		"currVoltsLevel" : pilot.battery.battery_remaining if pilot.battery != None else None,
+		"currA" : pilot.battery.current_battery if pilot.battery != None else None,
+		"currTotmAh" : pilot.battery.current_consumed if pilot.battery != None else None,
+		"voltages" : pilot.battery.voltages if pilot.battery != None else None,
 
 		"videostat" : "ON" if video_manager.process != None else "OFF",
 
 		"modemstatus" : modem.MODEMSTATUS,
 		"modemsignal" : modem.MODEMSIGNAL,
 
-		"message" : pilot.statusMessage,
-		"messageSev" : str(pilot.statusSev),
+		"message" : pilot.statustext.text if pilot.statustext != None else None,
+		"messageSev" : str(pilot.statustext.severity) if pilot.statustext != None else None,
 
 		#30 s reporting
 		"unitCallbackPort" : "8080"
@@ -302,7 +309,8 @@ async def run():
 	#read config
 
 	config = configparser.ConfigParser()
-	config.readfp(open(cfg, 'r'))
+	#config.readfp(open(cfg, 'r'))
+	config.read(cfg)
 
 	#read cfg params
 	HOST = config.get('main', 'HOSTNAME')
@@ -390,7 +398,7 @@ async def run():
 
 
 	#wait for vehicle connection
-	while pilot.vehicle == None and mavlinkPort != "":
+	while pilot.the_connection == None and mavlinkPort != "":
 		log.info(" Waiting for vehicle connection ...")
 		await asyncio.sleep(1)
 		await sendHeartbeat(log, unitID, videoChannel, http, url, headers)
@@ -398,29 +406,17 @@ async def run():
 			if pilot.current_milli_time() - good_heartbeat > FS_TRESHOLD:
 				log.info("FAILSAFE - noncritical")
 
-	async for state in pilot.vehicle.core.connection_state():
-		if state.is_connected:
-			log.info(" Connected")
-			break
-
+	pilot.the_connection.wait_heartbeat()
+	log.info("Main: Connected")
 
 	#wait for health and home
-	async for health in pilot.vehicle.telemetry.health():
-		if health.is_global_position_ok and health.is_home_position_ok:
-			log.info("Global position state is good enough for flying.")
-			await sendHeartbeat(log, unitID, videoChannel, http, url, headers)
-			if good_heartbeat != None:
-				if pilot.current_milli_time() - good_heartbeat > FS_TRESHOLD:
-					log.info("FAILSAFE - noncritical")
-			break
-		else:
-			log.info(f"Waiting for HOME location and good health {health}")
+	while pilot.home == None:
+		log.info(f"Waiting for HOME location and good health")
+		await sendHeartbeat(log, unitID, videoChannel, http, url, headers)
+		asyncio.sleep(1)
 
-			await sendHeartbeat(log, unitID, videoChannel, http, url, headers)
-			if good_heartbeat != None:
-				if pilot.current_milli_time() - good_heartbeat > FS_TRESHOLD:
-					log.info("FAILSAFE - noncritical")
-
+	log.info("Global position state is good enough for flying.")
+	await sendHeartbeat(log, unitID, videoChannel, http, url, headers)
 
 	#get home loc
 	log.info(f"Home location: {pilot.home}")

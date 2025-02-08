@@ -66,6 +66,7 @@ armed = None
 armedStatus	= None
 flightMode = None
 mavPosition = None
+fixType = None
 
 
 
@@ -116,6 +117,7 @@ def telemMonitor():
 	global armed
 	global armedStatus
 	global mavPosition
+	global fixType
 
 
 
@@ -222,7 +224,7 @@ async def initVehicle():
 
 		#open conn
 
-		while vehicle == None:
+		while the_connection == None:
 			try:
 				# Init the drone
 
@@ -718,7 +720,8 @@ async def resume(data):
 
 				the_connection.mav.send(
 					mavutil.mavlink.MAVLink_set_position_target_global_int_message(
-						10, the_connection.target_system,
+						10, #time_boot_ms
+						the_connection.target_system,
 						the_connection.target_component,
 						mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
 						int(0b110111111000),
@@ -789,7 +792,7 @@ async def manual(data):
 		unlockV()
 
 async def reHome(data):
-	global vehicle
+	global the_connection
 	global log
 	
 	lockV()
@@ -901,7 +904,8 @@ async def goto(data):
 
 			the_connection.mav.send(
 				mavutil.mavlink.MAVLink_set_position_target_global_int_message(
-					10, the_connection.target_system,
+					10, #time_boot_ms
+					the_connection.target_system,
 					the_connection.target_component,
 					mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
 					int(0b110111111000),
@@ -1027,7 +1031,7 @@ async def setToCurrAlt(data):
 	global operatingAlt
 	global requestedLat
 	global requestedLon
-	global pos
+	global globalPos
 	global log
 
 
@@ -1035,7 +1039,7 @@ async def setToCurrAlt(data):
 	try:
 		log.info("SETCURRALT")
 
-		operatingAlt = str(max(int(pos.relative_altitude_m), 0))
+		operatingAlt = str(max(int(globalPos.relative_alt), 0))
 
 		await changeAlt(requestedLat, requestedLon, operatingAlt)
 
@@ -1049,8 +1053,7 @@ async def setToCurrAlt(data):
 	
 async def changeAlt(requestedLat, requestedLon, relAlt):
 
-	global vehicle
-	global pos
+	global the_connection
 	global home
 	global operatingAlt
 	global operatingSpeed
@@ -1059,23 +1062,26 @@ async def changeAlt(requestedLat, requestedLon, relAlt):
 	if requestedLat != None and requestedLon != None:
 		#wont work in LOITER mode
 
-		brg = get_bearing(pos.latitude_deg, pos.longitude_deg, float(requestedLat), float(requestedLon))
-
 
 		try:
-			await vehicle.action.goto_location(float(requestedLat), float(requestedLon), float(home.absolute_altitude_m) + float(operatingAlt), float(brg))
+
+			the_connection.mav.command_long_send(
+				the_connection.target_system, the_connection.target_component,
+				mavutil.mavlink.MAV_CMD_DO_CHANGE_ALTITUDE,
+				0,float(operatingAlt),
+				mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,0,0,0,0,0,)
+
+			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+			log.info(f"ALT ACK:  {msg}")
+
 		except:
 			traceback.print_exc()
 
-		try:
-			await vehicle.action.set_current_speed(float(operatingSpeed))
-		except:
-			traceback.print_exc()
 
 
 async def speed(data):
 
-	global vehicle
+	global the_connection
 	global operatingSpeed
 	global log
 	
@@ -1088,7 +1094,14 @@ async def speed(data):
 		for i in parameters:
 			if i['name'] == "speed":
 				operatingSpeed = i['value']
-				await vehicle.action.set_current_speed(float(operatingSpeed))
+
+				the_connection.mav.command_long_send(
+					the_connection.target_system, the_connection.target_component,
+					mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,0,1,float(operatingSpeed),0,0,0,0,0,)
+
+				msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+				log.info(f"SPD ACK:  {msg}")
+
 		
 		log.info(" operating speed is now " + operatingSpeed)
 		return "OK"
@@ -1097,14 +1110,20 @@ async def speed(data):
 		unlockV()
 		
 async def speedAdjust(delta):
-	global vehicle
+	global the_connection
 	global operatingSpeed
 	global log
 	
 	lockV()
 	try:
 		operatingSpeed = str(max(min(int(operatingSpeed) + delta, 20), 1))
-		await vehicle.action.set_current_speed(float(operatingSpeed))
+
+		the_connection.mav.command_long_send(
+			the_connection.target_system, the_connection.target_component,
+			mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,0,1,float(operatingSpeed),0,0,0,0,0,)
+
+		msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+		log.info(f"SPD ACK:  {msg}")
 		
 		log.info(" operating speed is now " + operatingSpeed)
 		
@@ -1156,23 +1175,66 @@ async def incSpeed1(data):
 
 #override channels - center 
 async def centerSticks():
-	global vehicle
+	global the_connection
 
-	#await vehicle.manual_control.set_manual_control_input(
-	#	float(0), float(0), float(0.5), float(0)
-	#)
 
-	#await vehicle.manual_control.start_position_control()
+	the_connection.mav.send(
+		mavutil.mavlink.MAVLink_rc_channels_override_message(
+				the_connection.target_system, the_connection.target_component,
+				1500,
+				1500,
+				1500,
+				1500,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0)
+			)
+	
+	msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+	log.info(f"RC CHANNELS:  {msg}")
+
 	
 #remove channel overrides
 async def releaseSticks():
-	global vehicle
-	#await vehicle.manual_control.set_manual_control_input(
-	#	float(0), float(0), float(0.5), float(0)
-	#)
-	#await vehicle.action.hold()
+	global the_connection
 
-	#vehicle.channels.overrides = {}
+	the_connection.mav.send(
+		mavutil.mavlink.MAVLink_rc_channels_override_message(
+				the_connection.target_system, the_connection.target_component,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0)
+			)
+	
+	msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+	log.info(f"RC CHANNELS:  {msg}")
+
 	
 
 

@@ -5,8 +5,7 @@
 
 # https://mavlink.io/en/mavgen_python/howto_requestmessages.html
 
-# https://ardupilot.org/dev/docs/ArduPlane_MAVLink_Messages.html
-
+# https://ardupilot.org/dev/docs/ArduCopter_MAVLink_Messages.html
 
 import asyncio
 import threading
@@ -176,6 +175,7 @@ async def run():
                         bool(the_connection.motors_armed())
                         )
                   print("GPS %d s:" % the_connection.time_since('GPS_RAW_INT'), gpsRaw)
+                  print("RPO %d s:" % 0, the_connection.location())
                   print("POS %d s:" % the_connection.time_since('GLOBAL_POSITION_INT'), globalPos)
                   print("HME %d s:" % the_connection.time_since('HOME_POSITION'), home)
                   print("BAT %d s:" % the_connection.time_since('BATTERY_STATUS'), battery)
