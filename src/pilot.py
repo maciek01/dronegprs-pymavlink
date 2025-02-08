@@ -26,7 +26,7 @@ URL = None
 BAUD = None
 log = None
 
-#monitoring tasks
+#monitoring and controlling tasks
 
 vehicleLock = threading.RLock()
 
@@ -34,20 +34,10 @@ task = None
 monitor_thread = None
 monitor_on = False
 
+control_thread = None
+control_on = False
+
 #MAVLINK status
-'''curr_tot = 0
-voltages = None
-bat_percent = 0
-heading = 0
-statusMessage = ""
-statusSev = -1 #https://mavlink.io/en/messages/common.html#MAV_SEVERITY
-gps_info = None
-pos = None
-gps_data = None
-home = None
-mode = None
-armed = None
-connected = False'''
 
 
 #mavlink connection
@@ -67,7 +57,8 @@ armedStatus	= None
 flightMode = None
 mavPosition = None
 fixType = None
-
+#controls
+centerTheSticks = False
 
 
 ########################### STATE AND MESSAGE OBSERVERS ########################
@@ -97,6 +88,19 @@ def setMessageFrequency(message_id, frequency):
 		log.info("Command accepted for message ID %d with frequency %d microseconds" % (message_id, frequency))
 	else:
 		log.info("Command failed for message ID %d" % message_id)
+
+
+def controlMonitor():
+
+	global centerTheSticks
+
+	while control_on:
+		time.sleep(1)
+		if centerTheSticks:
+			centerSticks()
+		#else:
+		#	releaseSticks()	
+
 
 
 
@@ -204,6 +208,8 @@ async def initVehicle():
 	global log
 	global monitor_thread
 	global monitor_on
+	global control_thread
+	global control_on
 
 
 	lockV()
@@ -214,13 +220,22 @@ async def initVehicle():
 				monitor_thread.join()
 				monitor_thread = None
 			except:
-				log.info("ERROR WHEN CANCELLING A TASK")
+				log.info("ERROR WHEN CANCELLING A TELEM TASK")
+
 
 			#close conn
 			try:
 				the_connection = None
 			except Exception as inst:
 				the_connection = None
+
+		if control_thread != None:
+			try:
+				control_on = False
+				control_thread.join()
+				control_thread = None
+			except:
+				log.info("ERROR WHEN CANCELLING A CONTROL TASK")
 
 		#open conn
 
@@ -260,6 +275,8 @@ async def pilotMonitor():
 	global the_connection
 	global monitor_thread
 	global monitor_on
+	global control_thread
+	global control_on
 	global log
 
 	#wait to initialize the pilot
@@ -271,6 +288,12 @@ async def pilotMonitor():
 	monitor_thread = threading.Thread(target=telemMonitor, args=())
 	monitor_thread.daemon = True
 	monitor_thread.start()
+
+
+	control_on = True
+	control_thread = threading.Thread(target=controlMonitor, args=())
+	control_thread.daemon = True
+	control_thread.start()
 
 	#read loop
 
@@ -326,6 +349,7 @@ async def arm(data):
 	global log
 	global savedLat
 	global savedLon
+	global centerTheSticks
 
 	lockV()
 
@@ -345,7 +369,7 @@ async def arm(data):
 		except:
 			traceback.print_exc()
 
-		await releaseSticks()
+		releaseSticks()
 		
 		#cancel resume
 		savedLat = None
@@ -362,6 +386,7 @@ async def disarm(data):
 	global log
 	global savedLat
 	global savedLon
+	global centerTheSticks
 
 	lockV()
 	try:
@@ -379,8 +404,9 @@ async def disarm(data):
 
 		except:
 			traceback.print_exc()
-		await releaseSticks()
-		
+
+		releaseSticks()
+
 		#cancel resume
 		savedLat = None
 		savedLon = None		
@@ -434,6 +460,7 @@ async def takeoff(data):
 	global armed
 	global savedLat
 	global savedLon
+	global centerTheSticks
 
 	lockV()
 	try:
@@ -470,7 +497,8 @@ async def takeoff(data):
 			log.info(f"TAKEOFF ACK:  {msg}")
 		except:
 			traceback.print_exc()
-		await releaseSticks()
+
+		releaseSticks()
 
 		#cancel resume
 		savedLat = None
@@ -491,6 +519,7 @@ async def land(data):
 	global savedLat
 	global savedLon
 	global log
+	global centerTheSticks
 	
 	lockV()
 	try:
@@ -498,6 +527,11 @@ async def land(data):
 		#if not armed:
 			#print " NOT ARMED"
 			#return "ERROR: NOT ARMED"
+
+		try:
+			await guided(data)
+		except:
+			traceback.print_exc()
 			
 		try:
 			the_connection.mav.command_long_send(
@@ -511,7 +545,7 @@ async def land(data):
 		except:
 			traceback.print_exc()
 
-		await releaseSticks()
+		releaseSticks()
 
 		#cancel last goto		
 		savedLat = None
@@ -534,12 +568,13 @@ async def position(data):
 	global savedLat
 	global savedLon 
 	global log
+	global centerTheSticks
 	
 	lockV()
 	try:
 		log.info("POSITION")
 			
-		await centerSticks()
+		centerSticks()
 		try:
 
 			mode_id = the_connection.mode_mapping()["POSHOLD"]
@@ -578,12 +613,13 @@ async def loiter(data):
 	global savedLat
 	global savedLon 
 	global log
+	global centerTheSticks
 	
 	lockV()
 	try:
 		log.info("LOITER")
 			
-		await centerSticks()
+		centerSticks()
 		try:
 
 			mode_id = the_connection.mode_mapping()["LOITER"]
@@ -620,12 +656,13 @@ async def auto(data):
 	global savedLat
 	global savedLon 
 	global log
+	global centerTheSticks
 	
 	lockV()
 	try:
 		log.info("AUTO")
 			
-		await releaseSticks()
+		releaseSticks()
 		try:
 			#await vehicle.mission.start_mission()
 
@@ -660,12 +697,17 @@ async def pause(data):
 
 	global the_connection
 	global log
-	
+	global savedLat
+	global savedLon
+	global requestedLat
+	global requestedLon
+
 	lockV()
 	try:
 		log.info("PAUSE")
 			
-		
+		centerSticks()
+
 		if True:
 			#just loiter
 			try:
@@ -683,6 +725,12 @@ async def pause(data):
 			except:
 				traceback.print_exc()
 			
+		#save last goto
+		savedLat = requestedLat
+		savedLon = requestedLon
+		requestedLat = None
+		requestedLon = None
+
 
 		log.info(" paused")
 
@@ -702,6 +750,7 @@ async def resume(data):
 	global savedLat
 	global savedLon 
 	global log
+	global centerTheSticks
 	
 	lockV()
 	try:
@@ -711,7 +760,11 @@ async def resume(data):
 			requestedLat = savedLat
 			requestedLon = savedLon
 
-			await guided(data)
+			try:
+				await guided(data)
+			except:
+				traceback.print_exc()
+
 
 			brg = get_bearing(mavPosition.lat, mavPosition.lng, float(requestedLat), float(requestedLon))
 
@@ -743,8 +796,9 @@ async def resume(data):
 
 			savedLat = None
 			savedLon = None
-			await releaseSticks()
-		
+
+			releaseSticks()
+			
 		log.info(" resuming")
 			
 		return "OK"
@@ -757,6 +811,7 @@ async def manual(data):
 
 	global the_connection
 	global log
+	global centerTheSticks
 	
 	lockV()
 	try:
@@ -776,8 +831,7 @@ async def manual(data):
 		except:
 			traceback.print_exc()
 
-		await releaseSticks()
-
+		releaseSticks()
 		log.info(" manual control")
 
 		return "OK"
@@ -816,6 +870,7 @@ async def rtl(data):
 	global savedLat
 	global savedLon	   
 	global log
+	global centerTheSticks
 	
 	lockV()
 	try:
@@ -841,7 +896,7 @@ async def rtl(data):
 		except:
 			traceback.print_exc()
 
-		await releaseSticks()
+		releaseSticks()
 
 		#cancel last goto
 		savedLat = None
@@ -867,6 +922,9 @@ async def goto(data):
 	global requestedLon
 	global operatingSpeed
 	global log
+	global centerTheSticks
+	global savedLat
+	global savedLon
 	
 	lockV()
 	try:
@@ -874,7 +932,12 @@ async def goto(data):
 		if not armed:
 			log.info(" NOT ARMED")
 			return "ERROR: NOT ARMED"
-		
+
+		try:
+			await guided(data)
+		except:
+			traceback.print_exc()
+
 		parameters = data['command']['parameters']
 		
 		for i in parameters:
@@ -912,8 +975,7 @@ async def goto(data):
 		except:
 			traceback.print_exc()
 
-
-		await releaseSticks()
+		releaseSticks()
 
 		#cancel resume
 		savedLat = None
@@ -1170,9 +1232,11 @@ async def incSpeed1(data):
 
 
 #override channels - center 
-async def centerSticks():
+# make sure to set timeout to 120 seconds
+# https://ardupilot.org/copter/docs/parameters.html#rc-override-time
+def centerSticks():
 	global the_connection
-
+	global centerTheSticks
 
 	the_connection.mav.send(
 		mavutil.mavlink.MAVLink_rc_channels_override_message(
@@ -1196,14 +1260,15 @@ async def centerSticks():
 				0,
 				0)
 			)
-	
-	msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-	log.info(f"RC CHANNELS:  {msg}")
+	centerTheSticks = True
+	#msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+	#log.info(f"RC CHANNELS:  {msg}")
 
 	
 #remove channel overrides
-async def releaseSticks():
+def releaseSticks():
 	global the_connection
+	global centerTheSticks
 
 	the_connection.mav.send(
 		mavutil.mavlink.MAVLink_rc_channels_override_message(
@@ -1227,9 +1292,9 @@ async def releaseSticks():
 				0,
 				0)
 			)
-	
-	msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-	log.info(f"RC CHANNELS:  {msg}")
+	centerTheSticks = False
+	#msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+	#log.info(f"RC CHANNELS:  {msg}")
 
 	
 

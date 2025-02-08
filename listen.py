@@ -7,6 +7,9 @@
 
 # https://ardupilot.org/dev/docs/ArduCopter_MAVLink_Messages.html
 
+# AP specific:
+# https://ardupilot.org/copter/docs/common-mavlink-mission-command-messages-mav_cmd.html
+
 import asyncio
 import threading
 import time
@@ -25,6 +28,8 @@ rangefinder = None
 statustext = None
 sysstatus = None
 heartbeat = None
+rcChannels = None
+rcChannelsRaw = None
 
 
 
@@ -64,6 +69,8 @@ def telemMonitor():
       global statustext
       global sysstatus
       global heartbeat
+      global rcChannels
+      global rcChannelsRaw
 
 
 
@@ -75,7 +82,9 @@ def telemMonitor():
       setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, 1000000)
       setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS, 1000000)
       setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HEARTBEAT, 1000000)
-      
+      setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_RC_CHANNELS, 1000000)
+      setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_RC_CHANNELS_RAW, 1000000)
+
 
       while 1:
             try:
@@ -91,6 +100,8 @@ def telemMonitor():
                   statustext = the_connection.recv_match(type='STATUSTEXT', blocking=False)
                   sysstatus = the_connection.recv_match(type='SYS_STATUS', blocking=False)
                   heartbeat = the_connection.recv_match(type='HEARTBEAT', blocking=False)
+                  rcChannels = the_connection.recv_match(type='RC_CHANNELS', blocking=False)
+                  rcChannelsRaw = the_connection.recv_match(type='RC_CHANNELS_RAW', blocking=False)
 
 
             except Exception as e:
@@ -114,6 +125,10 @@ def telemMonitor():
                         globalPos = getMessage('GLOBAL_POSITION_INT')
                   if gpsRaw is None:
                         gpsRaw = getMessage('GPS_RAW_INT')
+                  if rcChannels is None:
+                        rcChannels = getMessage('RC_CHANNELS')
+                  if rcChannelsRaw is None:
+                        rcChannelsRaw = getMessage('RC_CHANNELS_RAW')
 
 
             except Exception as e:
@@ -159,10 +174,39 @@ async def run():
       global statustext
       global sysstatus
       global heartbeat
+      global rcChannels
+      global rcChannelsRaw
 
 
       await initVehicle()
 
+
+      msg = the_connection.mav.send(
+            mavutil.mavlink.MAVLink_rc_channels_override_message(
+                        #the_connection.target_system, the_connection.target_component,
+                        0,0,
+                        2000,
+                        2000,
+                        2000,
+                        2000,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0)
+                  )
+
+      #msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+      print(f"RC CHANNELS:  {msg}")
 
       while 1:
             await asyncio.sleep(1)
@@ -183,6 +227,8 @@ async def run():
                   print("STX %d s:" % the_connection.time_since('STATUSTEXT'), statustext)
                   print("SYS %d s:" % the_connection.time_since('SYS_STATUS'), sysstatus)
                   print("HRT %d s:" % the_connection.time_since('HEARTBEAT'), heartbeat)
+                  print("RCC %d s:" % the_connection.time_since('RC_CHANNELS'), rcChannels)
+                  print("RCR %d s:" % the_connection.time_since('RC_CHANNELS_RAW'), rcChannelsRaw)
 
             except Exception as e:
                   print(e)
