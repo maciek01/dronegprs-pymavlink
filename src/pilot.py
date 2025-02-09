@@ -58,7 +58,7 @@ heartbeat = None
 armed = None
 armedStatus	= None
 flightMode = None
-mavPosition = None
+#mavPosition = None
 fixType = None
 #controls
 centerTheSticks = False
@@ -131,7 +131,7 @@ def telemMonitor():
 	global flightMode
 	global armed
 	global armedStatus
-	global mavPosition
+	#global mavPosition
 	global fixType
 
 
@@ -196,7 +196,7 @@ def telemMonitor():
 				armedStatus = "ARMED"
 			else:
 				armedStatus = "DISARMED"
-			mavPosition = the_connection.location()
+			#mavPosition = the_connection.location()
 
 		except Exception as e:
 			log.info("error in monitor get", e)
@@ -262,7 +262,7 @@ def initVehicle():
 				# Init the drone
 
 				# Start a connection listening to a UDP port
-				the_connection = mavutil.mavlink_connection(URL)
+				the_connection = mavutil.mavlink_connection(URL, BAUD)
 
 				# Wait for the first heartbeat
 				#   This sets the system and component ID of remote system for the link
@@ -771,7 +771,8 @@ async def pause(data):
 async def resume(data):
 
 	global the_connection
-	global mavPosition
+	#global mavPosition
+	global globalPos
 	global home
 	global requestedLat
 	global requestedLon
@@ -795,7 +796,7 @@ async def resume(data):
 				traceback.print_exc()
 
 
-			brg = get_bearing(mavPosition.lat, mavPosition.lng, float(requestedLat), float(requestedLon))
+			brg = get_bearing(globalPos.lat / 10 ** 7, globalPos.lon / 10 ** 7, float(requestedLat), float(requestedLon))
 
 
 			try:
@@ -954,6 +955,7 @@ async def goto(data):
 	global centerTheSticks
 	global savedLat
 	global savedLon
+	global globalPos
 	
 	lockV()
 	try:
@@ -978,7 +980,7 @@ async def goto(data):
 				requestedLon = lon
 
 
-		brg = get_bearing(mavPosition.lat, mavPosition.lng, float(requestedLat), float(requestedLon))
+		brg = get_bearing(globalPos.lat / 10 ** 7, globalPos.lon / 10 ** 7, float(requestedLat), float(requestedLon))
 
 		try:
 

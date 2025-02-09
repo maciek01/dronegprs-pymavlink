@@ -111,12 +111,6 @@ def reportPilotData():
 		gpsd = None
 	
 	try:
-		pilot.mavPosition
-		pos = pilot.mavPosition
-	except Exception:
-		pos = None
-	
-	try:
 		pilot.globalPos
 		posGlobal = pilot.globalPos
 	except Exception:
@@ -129,9 +123,9 @@ def reportPilotData():
 
 		"stateTimestampMS" : pilot.current_milli_time(),
 		"gpsLatLon" : "",
-		"gpsLat" : pos.lat if pos != None else None,
-		"gpsLon" : pos.lng if pos != None else None,
-		"gpsAlt" : pos.alt if pos != None else None,
+		"gpsLat" : posGlobal.lat / 10 ** 7 if posGlobal != None else None,
+		"gpsLon" : posGlobal.lon / 10 ** 7 if posGlobal != None else None,
+		"gpsAlt" : posGlobal.alt / 1000 if posGlobal != None else None,
 		"gpsAltRel" : posGlobal.relative_alt / 1000 if posGlobal != None else None,
 
 		"homeLatLon" : "",
@@ -152,7 +146,7 @@ def reportPilotData():
 		#"heading" : gpsd.yaw_deg if gpsd != None else None,
 		"heading" : pilot.globalPos.hdg / 100 if pilot.globalPos != None else None,
 		"cog" : gpsd.cog / 100 if gpsd != None else None,
-		"baroAlt" : pos.alt if pos != None else None,
+		"baroAlt" : posGlobal.alt / 1000 if posGlobal != None else None,
 		"sonarAlt" : posGlobal.relative_alt / 1000 if posGlobal != None else None,
 		"lidarAlt" : posGlobal.relative_alt / 1000 if posGlobal != None else None,
 		#"status" : pilot.vehicle.system_status.state,
