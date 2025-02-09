@@ -11,7 +11,7 @@
 ### END INIT INFO
 
 # Change the next 3 lines to suit where you install your script and what you want to call it
-DRONEGPRS_PATH=/home/pi/dronegprs-mavsdk
+DRONEGPRS_PATH=/home/pi/dronegprs-pymavlink
 #DIR=$DRONEGPRS_PATH/src
 DIR=/usr/bin
 DAEMON_NAME=droneclientd
