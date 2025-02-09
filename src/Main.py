@@ -407,8 +407,8 @@ async def run():
 			if pilot.current_milli_time() - good_heartbeat > FS_TRESHOLD:
 				log.info("FAILSAFE - noncritical")
 
-	pilot.the_connection.wait_heartbeat()
-	log.info("Main: Connected")
+	#pilot.the_connection.wait_heartbeat()
+	#log.info("Main: Connected")
 
 	#wait for health and home
 	while pilot.home == None:

@@ -93,6 +93,14 @@ def setMessageFrequency(message_id, frequency):
 def controlMonitor():
 
 	global centerTheSticks
+	global the_connection
+
+	# Wait for the first heartbeat
+	#   This sets the system and component ID of remote system for the link
+	the_connection.wait_heartbeat()
+	log.info("Heartbeat from system (system %u component %u)" %
+		(the_connection.target_system, the_connection.target_component))
+
 
 	while control_on:
 		time.sleep(1)
@@ -122,6 +130,13 @@ def telemMonitor():
 	global armedStatus
 	global mavPosition
 	global fixType
+
+
+	# Wait for the first heartbeat
+	#   This sets the system and component ID of remote system for the link
+	the_connection.wait_heartbeat()
+	log.info("Heartbeat from system (system %u component %u)" %
+		(the_connection.target_system, the_connection.target_component))
 
 
 
@@ -248,9 +263,9 @@ async def initVehicle():
 
 				# Wait for the first heartbeat
 				#   This sets the system and component ID of remote system for the link
-				the_connection.wait_heartbeat()
-				log.info("Heartbeat from system (system %u component %u)" %
-					(the_connection.target_system, the_connection.target_component))
+				#the_connection.wait_heartbeat()
+				#log.info("Heartbeat from system (system %u component %u)" %
+				#	(the_connection.target_system, the_connection.target_component))
 
 
 
