@@ -156,12 +156,12 @@ def reportPilotData():
 
 		#5 sec reporting
 		"gpsNumSats" : gps1.satellites_visible if gps1 != None else None,
-		"gpsLock" : str(gps1.fix_type) if gps1 != None else None,
+		"gpsLock" : pilot.fixType,
 		"gpsHError" : gpsd.eph if gpsd != None else None,
 		"gpsVError" : gpsd.epv if gpsd != None else None,
 
 		"gps2NumSats" : gps1.satellites_visible if gps1 != None else None,
-		"gps2Lock" : str(gps1.fix_type) if gps1 != None else None,
+		"gps2Lock" : pilot.fixType,
 		"gps2HError" : gpsd.eph if gpsd != None else None,
 		"gps2VError" : gpsd.epv if gpsd != None else None,
 

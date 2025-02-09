@@ -60,9 +60,24 @@ armedStatus	= None
 flightMode = None
 #mavPosition = None
 fixType = None
+
+
 #controls
 centerTheSticks = False
 
+#consants
+
+fix_type_text = {
+	mavutil.mavlink.GPS_FIX_TYPE_NO_GPS: "No GPS",
+	mavutil.mavlink.GPS_FIX_TYPE_NO_FIX: "No Fix",
+	mavutil.mavlink.GPS_FIX_TYPE_2D_FIX: "2D Fix",
+	mavutil.mavlink.GPS_FIX_TYPE_3D_FIX: "3D Fix",
+	mavutil.mavlink.GPS_FIX_TYPE_DGPS: "DGPS",
+	mavutil.mavlink.GPS_FIX_TYPE_RTK_FLOAT: "RTK Float",
+	mavutil.mavlink.GPS_FIX_TYPE_RTK_FIXED: "RTK Fixed",
+	mavutil.mavlink.GPS_FIX_TYPE_STATIC: "Static",
+	mavutil.mavlink.GPS_FIX_TYPE_PPP: "PPP"
+}
 
 ########################### STATE AND MESSAGE OBSERVERS ########################
 
@@ -133,6 +148,7 @@ def telemMonitor():
 	global armedStatus
 	#global mavPosition
 	global fixType
+	global fix_type_text
 
 
 	# Wait for the first heartbeat
@@ -197,6 +213,7 @@ def telemMonitor():
 			else:
 				armedStatus = "DISARMED"
 			#mavPosition = the_connection.location()
+			fixType = fix_type_text.get(gpsRaw.fix_type, "Unknown")
 
 		except Exception as e:
 			log.info("error in monitor get", e)
