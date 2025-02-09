@@ -17,7 +17,7 @@ echo got modem on a USB port
 sleep 1
 
 #start gprs
-#MODEM="$($HOME/dronegprs-mavsdk/src/getModem.py)"
+#MODEM="$($HOME/dronegprs-pymavlink/src/getModem.py)"
 MODEM="/dev/ttyUSB2"
 
 echo "Modem id "$MODEM - ${MODEM: -4}
@@ -82,8 +82,8 @@ fi
 
 #fixup dns
 echo set default DNS via google
-sudo cp $HOME/dronegprs-mavsdk/resolv.conf.8.8.8.8 /etc/resolv.conf
-sudo cp $HOME/dronegprs-mavsdk/resolv.conf.8.8.8.8 /etc/ppp/resolv.conf
+sudo cp $HOME/dronegprs-pymavlink/resolv.conf.8.8.8.8 /etc/resolv.conf
+sudo cp $HOME/dronegprs-pymavlink/resolv.conf.8.8.8.8 /etc/ppp/resolv.conf
 
 #fixup routing
 

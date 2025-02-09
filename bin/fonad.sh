@@ -11,7 +11,7 @@
 ### END INIT INFO
 
 # Change the next 3 lines to suit where you install your script and what you want to call it
-DIR=/home/pi/dronegprs-mavsdk/bin
+DIR=/home/pi/dronegprs-pymavlink/bin
 DAEMON=$DIR/startFona.sh
 DAEMON_NAME=fonad
 

@@ -149,7 +149,8 @@ async def initVehicle():
       global the_connection
 
       # Start a connection listening to a UDP port
-      the_connection = mavutil.mavlink_connection('udpin:localhost:14551')
+      #the_connection = mavutil.mavlink_connection('udpin:localhost:14551')
+      the_connection = mavutil.mavlink_connection('/dev/ttyAMA0', 57600)
 
       # Wait for the first heartbeat
       #   This sets the system and component ID of remote system for the link
@@ -181,33 +182,6 @@ async def run():
       await initVehicle()
 
 
-      msg = the_connection.mav.send(
-            mavutil.mavlink.MAVLink_rc_channels_override_message(
-                        #the_connection.target_system, the_connection.target_component,
-                        0,0,
-                        2000,
-                        2000,
-                        2000,
-                        2000,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0)
-                  )
-
-      #msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-      print(f"RC CHANNELS:  {msg}")
-
       while 1:
             await asyncio.sleep(1)
 
@@ -215,11 +189,10 @@ async def run():
                   print("--------------------------------------------------")
                   print("CON:",
                         the_connection.flightmode,
-                        the_connection.location(),
                         bool(the_connection.motors_armed())
                         )
                   print("GPS %d s:" % the_connection.time_since('GPS_RAW_INT'), gpsRaw)
-                  print("RPO %d s:" % 0, the_connection.location())
+                  #print("RPO %d s:" % 0, the_connection.location())
                   print("POS %d s:" % the_connection.time_since('GLOBAL_POSITION_INT'), globalPos)
                   print("HME %d s:" % the_connection.time_since('HOME_POSITION'), home)
                   print("BAT %d s:" % the_connection.time_since('BATTERY_STATUS'), battery)
@@ -234,36 +207,6 @@ async def run():
                   print(e)
 
 
-def translate_flight_mode(mode):
-      flight_modes = {
-            0: "Stabilize",
-            1: "Acro",
-            2: "AltHold",
-            3: "Auto",
-            4: "Guided",
-            5: "Loiter",
-            6: "RTL",
-            7: "Circle",
-            9: "Land",
-            11: "Drift",
-            13: "Sport",
-            14: "Flip",
-            15: "AutoTune",
-            16: "PosHold",
-            17: "Brake",
-            18: "Throw",
-            19: "Avoid_ADSB",
-            20: "Guided_NoGPS",
-            21: "SmartRTL",
-            22: "FlowHold",
-            23: "Follow",
-            24: "ZigZag",
-            25: "SystemID",
-            26: "Heli_Autorotate",
-            27: "Auto_RTL",
-            28: "Turtle"
-      }
-      return flight_modes.get(mode, "Unknown")
 
 if __name__ == "__main__":
 
