@@ -31,11 +31,14 @@ log = None
 vehicleLock = threading.RLock()
 
 task = None
-monitor_thread = None
-monitor_on = False
+telem_thread = None
+telem_on = False
 
 control_thread = None
 control_on = False
+
+pilot_on = False
+pilot_thread = None
 
 #MAVLINK status
 
@@ -97,9 +100,9 @@ def controlMonitor():
 
 	# Wait for the first heartbeat
 	#   This sets the system and component ID of remote system for the link
-	the_connection.wait_heartbeat()
-	log.info("Heartbeat from system (system %u component %u)" %
-		(the_connection.target_system, the_connection.target_component))
+	#the_connection.wait_heartbeat()
+	#log.info("Heartbeat from system (system %u component %u)" %
+	#	(the_connection.target_system, the_connection.target_component))
 
 
 	while control_on:
@@ -114,7 +117,7 @@ def controlMonitor():
 
 def telemMonitor():
 
-	global monitor_on
+	global telem_on
 
 	global the_connection
 	global gpsRaw
@@ -134,9 +137,9 @@ def telemMonitor():
 
 	# Wait for the first heartbeat
 	#   This sets the system and component ID of remote system for the link
-	the_connection.wait_heartbeat()
-	log.info("Heartbeat from system (system %u component %u)" %
-		(the_connection.target_system, the_connection.target_component))
+	#the_connection.wait_heartbeat()
+	#log.info("Heartbeat from system (system %u component %u)" %
+	#	(the_connection.target_system, the_connection.target_component))
 
 
 
@@ -150,7 +153,7 @@ def telemMonitor():
 	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HEARTBEAT, 1000000)
 
 
-	while monitor_on:
+	while telem_on:
 		try:
 			time.sleep(1)
 			#print("Waiting for telem")
@@ -216,24 +219,24 @@ def lockV():
 def unlockV():
 	vehicleLock.release()
 
-async def initVehicle():
+def initVehicle():
 	global URL
 	global BAUD
 	global the_connection
 	global log
-	global monitor_thread
-	global monitor_on
+	global telem_thread
+	global telem_on
 	global control_thread
 	global control_on
 
 
 	lockV()
 	try:
-		if monitor_thread != None:
+		if telem_thread != None:
 			try:
-				monitor_on = False
-				monitor_thread.join()
-				monitor_thread = None
+				telem_on = False
+				telem_thread.join()
+				telem_thread = None
 			except:
 				log.info("ERROR WHEN CANCELLING A TELEM TASK")
 
@@ -263,16 +266,15 @@ async def initVehicle():
 
 				# Wait for the first heartbeat
 				#   This sets the system and component ID of remote system for the link
-				#the_connection.wait_heartbeat()
-				#log.info("Heartbeat from system (system %u component %u)" %
-				#	(the_connection.target_system, the_connection.target_component))
-
+				the_connection.wait_heartbeat()
+				log.info("Heartbeat from system (system %u component %u)" %
+					(the_connection.target_system, the_connection.target_component))
 
 
 			except Exception as inst:
 				the_connection = None
 				traceback.print_exc()
-				await asyncio.sleep(5)
+				time.sleep(5)
 
 
 		#register listeners
@@ -285,24 +287,25 @@ async def initVehicle():
 
 ####################### MAIN THREAD ############################################
 
-async def pilotMonitor():
+def pilotMonitor():
 
 	global the_connection
-	global monitor_thread
-	global monitor_on
+	global telem_thread
+	global telem_on
 	global control_thread
 	global control_on
 	global log
+	global pilot_on
 
 	#wait to initialize the pilot
 	log.info("ABOUT to call INIT VEH")
 
-	await initVehicle()
+	initVehicle()
 
-	monitor_on = True
-	monitor_thread = threading.Thread(target=telemMonitor, args=())
-	monitor_thread.daemon = True
-	monitor_thread.start()
+	telem_on = True
+	telem_thread = threading.Thread(target=telemMonitor, args=())
+	telem_thread.daemon = True
+	telem_thread.start()
 
 
 	control_on = True
@@ -312,13 +315,13 @@ async def pilotMonitor():
 
 	#read loop
 
-	while True:
+	while pilot_on:
 		try:
-			await asyncio.sleep(1)
+			time.sleep(1)
 			#check if the_connection is still alive
 		except Exception as inst:
 			#traceback.print_exc()
-			await initVehicle()
+			initVehicle()
 
 
 
@@ -327,18 +330,29 @@ async def pilotMonitor():
 async def pilotinit(_log, url, baud):
 	global URL
 	global BAUD
-	global monitor_thread
-	global monitor_on
+	global telem_thread
+	global telem_on
 	global log
 	global task
+	global pilot_on
+	global pilot_thread
 
 	log = _log
 
 	URL = url
 	BAUD = baud
 
-	task = asyncio.create_task(coro=pilotMonitor(), name="pilot")
-	await asyncio.sleep(1)
+
+
+
+	pilot_on = True
+	pilot_thread = threading.Thread(target=pilotMonitor, args=())
+	pilot_thread.daemon = True
+	pilot_thread.start()
+
+
+	#task = asyncio.create_task(coro=pilotMonitor(), name="pilot")
+	#await asyncio.sleep(1)
 
 
 ############################ LOACAL FUNCs     ##################################
