@@ -149,8 +149,8 @@ async def initVehicle():
       global the_connection
 
       # Start a connection listening to a UDP port
-      the_connection = mavutil.mavlink_connection('udpin:localhost:14551')
-      #the_connection = mavutil.mavlink_connection('/dev/ttyAMA0', 57600)
+      #the_connection = mavutil.mavlink_connection('udpin:localhost:14551')
+      the_connection = mavutil.mavlink_connection('/dev/ttyAMA0', 57600)
 
       # Wait for the first heartbeat
       #   This sets the system and component ID of remote system for the link
@@ -181,6 +181,19 @@ async def run():
 
       await initVehicle()
 
+
+      the_connection.mav.send(
+            mavutil.mavlink.MAVLink_rc_channels_override_message(
+            the_connection.target_system, the_connection.target_component,
+            1500,
+            1500,
+            1500,
+            1500,
+            0,
+            0,
+            0,
+            0,)
+            )
 
       while 1:
             await asyncio.sleep(1)
