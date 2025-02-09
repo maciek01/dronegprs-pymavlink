@@ -1,22 +1,29 @@
 
 #install pppd for wireless
 
-DRONEGPRS_PATH=/home/pi/dronegprs-mavsdk
+DRONEGPRS_PATH=/home/pi/dronegprs-pymavlink
 
-sudo rm -rf /etc/ppp/chatscripts
+sudo rm -rf /etc/ppp/chatscripts /etc/ppp/options-mobile
+
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/chatscripts /etc/ppp/chatscripts
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/options-mobile /etc/ppp/options-mobile
 
 # LTE-simbase:
+
+sudo rm -rf /etc/ppp/peers/mobile-noauth-simcom7600a-simbase-USB2
 
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/mobile-noauth-simcom7600a-simbase-USB2 /etc/ppp/peers/mobile-noauth-simcom7600a-simbase-USB2
 
 
 # LTE-hologram:
 
+sudo rm -rf /etc/ppp/peers/mobile-noauth-simcom7600a-hologram-USB2
+
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/mobile-noauth-simcom7600a-hologram-USB2 /etc/ppp/peers/mobile-noauth-simcom7600a-hologram-USB2
 
 # LTE-att
+
+sudo rm -rf /etc/ppp/peers/mobile-noauth-simcom7600a-att-USB0 /etc/ppp/peers/mobile-noauth-simcom7600a-att-USB1 /etc/ppp/peers/mobile-noauth-simcom7600a-att-USB2 /etc/ppp/peers/mobile-noauth-simcom7600a-att-USB3
 
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/mobile-noauth-simcom7600a-att-USB0 /etc/ppp/peers/mobile-noauth-simcom7600a-att-USB0
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/mobile-noauth-simcom7600a-att-USB1 /etc/ppp/peers/mobile-noauth-simcom7600a-att-USB1
@@ -25,9 +32,13 @@ sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/mobile-noauth-simcom7600a-att-USB3 /etc
 
 # 3G-hologram:
 
+sudo rm -rf /etc/ppp/peers/mobile-noauth-simcom5320a-hologram-USB2
+
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/mobile-noauth-simcom5320a-hologram-USB2 /etc/ppp/peers/mobile-noauth-simcom5320a-hologram-USB2
 
 # 3G-att:
+
+sudo rm -rf /etc/ppp/peers/mobile-noauth-simcom5320a-att-USB0 /etc/ppp/peers/mobile-noauth-simcom5320a-att-USB1 /etc/ppp/peers/mobile-noauth-simcom5320a-att-USB2 /etc/ppp/peers/mobile-noauth-simcom5320a-att-USB3
 
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/mobile-noauth-simcom5320a-att-USB0 /etc/ppp/peers/mobile-noauth-simcom5320a-att-USB0
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/mobile-noauth-simcom5320a-att-USB1 /etc/ppp/peers/mobile-noauth-simcom5320a-att-USB1
@@ -35,12 +46,17 @@ sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/mobile-noauth-simcom5320a-att-USB2 /etc
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/mobile-noauth-simcom5320a-att-USB3 /etc/ppp/peers/mobile-noauth-simcom5320a-att-USB3
 
 # 2G:
+
+sudo rm -rf /etc/ppp/peers/fonaUSB0 /etc/ppp/peers/fonaUSB1 /etc/ppp/peers/fonaUSB2 /etc/ppp/peers/fonaUSB3
+
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/fonaUSB0 /etc/ppp/peers/fonaUSB0
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/fonaUSB1 /etc/ppp/peers/fonaUSB1
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/fonaUSB2 /etc/ppp/peers/fonaUSB2
 sudo ln -s $DRONEGPRS_PATH/etc/ppp/peers/fonaUSB3 /etc/ppp/peers/fonaUSB3
 
 #install client daemon
+
+sudo rm -rf /etc/init.d/droneclientd /etc/init.d/fonad
 
 sudo ln -s $DRONEGPRS_PATH/bin/droneclientd.sh /etc/init.d/droneclientd
 sudo ln -s $DRONEGPRS_PATH/bin/fonad.sh /etc/init.d/fonad
