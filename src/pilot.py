@@ -1141,17 +1141,7 @@ def centerSticks():
 				0,
 				0,
 				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0)
+				0,)
 			)
 	centerTheSticks = True
 	#msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
@@ -1173,17 +1163,7 @@ def releaseSticks():
 				0,
 				0,
 				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0)
+				0,)
 			)
 	centerTheSticks = False
 	#msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
