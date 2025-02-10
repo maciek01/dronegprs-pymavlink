@@ -139,11 +139,9 @@ def reportPilotData():
 		"gpsSpeed" : gpsd.vel / 100  if gpsd != None else None,
 		"gpsTime" : gpsd.time_usec if gpsd != None else None,
 		"gpsStatus" : "none",
-		#"gpsLastStatusMS" : pilot.current_milli_time() - pilot.vehicle.last_heartbeat,
-		"gpsLastStatusMS" : "N/A",
+		"gpsLastStatusMS" : pilot.the_connection.time_since('GPS_RAW_INT') * 1000 if pilot.the_connection != None else "N/A",
 
 		"airSpeed" : gpsd.vel / 100 if gpsd != None else None,
-		#"heading" : gpsd.yaw_deg if gpsd != None else None,
 		"heading" : pilot.globalPos.hdg / 100 if pilot.globalPos != None else None,
 		"cog" : gpsd.cog / 100 if gpsd != None else None,
 		"baroAlt" : posGlobal.alt / 1000 if posGlobal != None else None,
@@ -214,9 +212,6 @@ async def sendHeartbeat(log, unitID, videoChannel, http, url, headers):
 			try:
 				response, content = http.request( url, 'POST', json.dumps(data), headers=headers)
 				content = content.decode("utf-8")
-				#response = requests.post(url, json = data, headers = headers, timeout = HTTP_TIMEOUT)
-				#content = response.content
-				#response.close()
 				log.info("heartbeat sent")
 				good_heartbeat = pilot.current_milli_time()
 			except Exception as inst:
@@ -240,9 +235,6 @@ async def sendHeartbeat(log, unitID, videoChannel, http, url, headers):
 			try:
 				response, content = http.request( url, 'POST', json.dumps(data), headers=headers)
 				content = content.decode("utf-8")
-				#response = requests.post(url, json = data, headers = headers, timeout = HTTP_TIMEOUT)
-				#content = response.content
-				#response.close()
 				log.info("heartbeat sent")
 				good_heartbeat = pilot.current_milli_time()
 			except Exception as inst:
@@ -401,6 +393,7 @@ async def run():
 			if pilot.current_milli_time() - good_heartbeat > FS_TRESHOLD:
 				log.info("FAILSAFE - noncritical")
 
+	#no need to wait for heartbeat here - wait for home instead
 	#pilot.the_connection.wait_heartbeat()
 	#log.info("Main: Connected")
 
