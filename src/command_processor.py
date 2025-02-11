@@ -91,6 +91,18 @@ async def incSpeed10(data):
 async def incSpeed1(data):
 	return await pilot.incSpeed1(data)
 
+async def moveLeft(data):
+	return await pilot.moveLeft(data)
+
+async def moveRight(data):
+	return await pilot.moveRight(data)
+
+async def moveForward(data):
+	return await pilot.moveForward(data)
+
+async def moveBack(data):
+	return await pilot.moveBack(data)
+
 async def setHome(data):
 	return await pilot.setHome(data)
 
@@ -143,6 +155,10 @@ actions = {
 	"DECSPEED10" : decSpeed10,
 	"INCSPEED10" : incSpeed10,
 	"INCSPEED1" : incSpeed1,
+	"MVLEFT" : moveLeft,
+	"MVRIGHT" : moveRight,
+	"MVFWD" : moveForward,
+	"MVBCK" : moveBack,
 	"FS_HTTP" : httpFS
 }
 

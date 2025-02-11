@@ -63,7 +63,7 @@ fixType = None
 
 
 #controls
-centerTheSticks = False
+centerTheThrottle = False
 
 #consants
 
@@ -110,7 +110,7 @@ def setMessageFrequency(message_id, frequency):
 
 def controlMonitor():
 
-	global centerTheSticks
+	global centerTheThrottle
 	global the_connection
 
 	# Wait for the first heartbeat
@@ -121,11 +121,8 @@ def controlMonitor():
 
 	while control_on:
 		time.sleep(1)
-		if centerTheSticks:
-			centerSticks()
-		#else:
-		#	releaseSticks()	
-
+		if centerTheThrottle:
+			centerThrottle()
 
 
 
@@ -634,7 +631,7 @@ async def holdInMode(mode, modeAlias, overrideSticks = True):
 		log.info(modeAlias)
 			
 		if overrideSticks:
-			centerSticks()
+			centerThrottle()
 
 		await modeCmd(mode)
 		
@@ -833,7 +830,7 @@ async def resume(data):
 	global savedLat
 	global savedLon 
 	global log
-	global centerTheSticks
+	global centerTheThrottle
 	
 	lockV()
 	try:
@@ -1123,51 +1120,80 @@ async def incSpeed1(data):
 	log.info("INCSPEED1")
 	return await speedAdjust(1)
 
+async def moveLeft(data):
+	global log
+	log.info("MVLEFT")
+	
+	setChannells(ch1 = 1300, ch3 = 1500)
+	await asyncio.sleep(0.5)
+	setChannells(ch3 = 1500 if centerTheThrottle else 0)
+
+	return "OK"
+
+async def moveRight(data):
+	global log
+	log.info("MVRIGHT")
+	
+	setChannells(ch1 = 1700, ch3 = 1500)
+	await asyncio.sleep(0.5)
+	setChannells(ch3 = 1500 if centerTheThrottle else 0)
+
+	return "OK"
+
+async def moveForward(data):
+	global log
+	log.info("MVFWD")
+	
+	setChannells(ch2 = 1300, ch3 = 1500)
+	await asyncio.sleep(0.5)
+	setChannells(ch3 = 1500 if centerTheThrottle else 0)
+
+	return "OK"
+
+async def moveBack(data):
+	global log
+	log.info("MVBCK")
+	
+	setChannells(ch2 = 1700, ch3 = 1500)
+	await asyncio.sleep(0.5)
+	setChannells(ch3 = 1500 if centerTheThrottle else 0)
+
+	return "OK"
+
+
+def setChannells(ch1 = 0, ch2 = 0, ch3 = 0, ch4 = 0, ch5 = 0, ch6 = 0, ch7 = 0, ch8 = 0):
+	global the_connection
+
+	the_connection.mav.send(
+		mavutil.mavlink.MAVLink_rc_channels_override_message(
+				the_connection.target_system, the_connection.target_component,
+				ch1,
+				ch2,
+				ch3,
+				ch4,
+				ch5,
+				ch6,
+				ch7,
+				ch8,))
+
 
 #override channels - center 
 # make sure to set timeout to 120 seconds
 # https://ardupilot.org/copter/docs/parameters.html#rc-override-time
-def centerSticks():
-	global the_connection
-	global centerTheSticks
+def centerThrottle():
+	global centerTheThrottle
 
-	the_connection.mav.send(
-		mavutil.mavlink.MAVLink_rc_channels_override_message(
-				the_connection.target_system, the_connection.target_component,
-				1500,
-				1500,
-				1500,
-				1500,
-				0,
-				0,
-				0,
-				0,)
-			)
-	centerTheSticks = True
-	#msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-	#log.info(f"RC CHANNELS:  {msg}")
+	setChannells(ch3 = 1500)
+
+	centerTheThrottle = True
 
 	
 #remove channel overrides
 def releaseSticks():
-	global the_connection
-	global centerTheSticks
+	global centerTheThrottle
 
-	the_connection.mav.send(
-		mavutil.mavlink.MAVLink_rc_channels_override_message(
-				the_connection.target_system, the_connection.target_component,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,)
-			)
-	centerTheSticks = False
-	#msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-	#log.info(f"RC CHANNELS:  {msg}")
+	setChannells()
+	centerTheThrottle = False
 
 	
 
