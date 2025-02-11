@@ -65,6 +65,11 @@ fixType = None
 #controls
 centerTheThrottle = False
 
+ch1Override = 0
+ch2Override = 0
+ch3Override = 0
+ch4Override = 0
+
 #consants
 
 fix_type_text = {
@@ -410,7 +415,7 @@ async def arm(data):
 		except:
 			traceback.print_exc()
 
-		releaseSticks()
+		releaseThrottle()
 		
 		#cancel resume
 		savedLat = None
@@ -445,7 +450,7 @@ async def disarm(data):
 		except:
 			traceback.print_exc()
 
-		releaseSticks()
+		releaseThrottle()
 
 		#cancel resume
 		savedLat = None
@@ -537,7 +542,7 @@ async def takeoff(data):
 		except:
 			traceback.print_exc()
 
-		releaseSticks()
+		releaseThrottle()
 
 		#cancel resume
 		savedLat = None
@@ -580,7 +585,7 @@ async def land(data):
 		except:
 			traceback.print_exc()
 
-		releaseSticks()
+		releaseThrottle()
 
 		#cancel last goto		
 		savedLat = None
@@ -642,7 +647,7 @@ async def holdInMode(mode, modeAlias, overrideSticks = True):
 		requestedLon = None
 
 		if not overrideSticks:
-			releaseSticks()
+			releaseThrottle()
 		
 		log.info(modeAlias + " activated")
 			
@@ -687,7 +692,7 @@ async def rtl(data):
 		except:
 			traceback.print_exc()
 
-		releaseSticks()
+		releaseThrottle()
 
 		#cancel last goto
 		savedLat = None
@@ -719,7 +724,7 @@ async def auto(data):
 		except:
 			traceback.print_exc()
 		
-		releaseSticks()
+		releaseThrottle()
 
 		#save last goto
 		savedLat = None
@@ -778,7 +783,7 @@ async def reposition(data):
 	except:
 		traceback.print_exc()
 
-	releaseSticks()
+	releaseThrottle()
 
 	
 async def goto(data):
@@ -1122,47 +1127,77 @@ async def incSpeed1(data):
 
 async def moveLeft(data):
 	global log
+	global ch1Override
+	global ch2Override
+	global ch3Override
+	global ch4Override
+	
 	log.info("MVLEFT")
 	
-	setChannells(ch1 = 1300, ch3 = 1500)
+	ch1Override = 1300
+	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 	await asyncio.sleep(0.5)
-	setChannells(ch3 = 1500 if centerTheThrottle else 0)
+	ch1Override = 0
+	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 
 	return "OK"
 
 async def moveRight(data):
 	global log
+	global ch1Override
+	global ch2Override
+	global ch3Override
+	global ch4Override
+
 	log.info("MVRIGHT")
 	
-	setChannells(ch1 = 1700, ch3 = 1500)
+	ch1Override = 1700
+	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 	await asyncio.sleep(0.5)
-	setChannells(ch3 = 1500 if centerTheThrottle else 0)
+	ch1Override = 0
+	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 
 	return "OK"
 
 async def moveForward(data):
 	global log
+	global ch1Override
+	global ch2Override
+	global ch3Override
+	global ch4Override
+
 	log.info("MVFWD")
 	
-	setChannells(ch2 = 1300, ch3 = 1500)
+	ch2Override = 1300
+	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 	await asyncio.sleep(0.5)
-	setChannells(ch3 = 1500 if centerTheThrottle else 0)
+	ch2Override = 0
+	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 
 	return "OK"
 
 async def moveBack(data):
 	global log
+	global ch1Override
+	global ch2Override
+	global ch3Override
+	global ch4Override
+
 	log.info("MVBCK")
 	
-	setChannells(ch2 = 1700, ch3 = 1500)
+	ch2Override = 1700
+	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 	await asyncio.sleep(0.5)
-	setChannells(ch3 = 1500 if centerTheThrottle else 0)
+	ch2Override = 0
+	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 
 	return "OK"
 
-
 def setChannells(ch1 = 0, ch2 = 0, ch3 = 0, ch4 = 0, ch5 = 0, ch6 = 0, ch7 = 0, ch8 = 0):
 	global the_connection
+
+	log.info("OVERRIDE: " + str(ch1) + " " + str(ch2) + " " + str(ch3) + " " + str(ch4)
+		+ " " + str(ch5) + " " + str(ch6) + " " + str(ch7) + " " + str(ch8))
 
 	the_connection.mav.send(
 		mavutil.mavlink.MAVLink_rc_channels_override_message(
@@ -1176,24 +1211,32 @@ def setChannells(ch1 = 0, ch2 = 0, ch3 = 0, ch4 = 0, ch5 = 0, ch6 = 0, ch7 = 0, 
 				ch7,
 				ch8,))
 
-
-#override channels - center 
+#override throttle - center - this is to make sure the drone does not descend in non guided modes 
 # make sure to set timeout to 120 seconds
 # https://ardupilot.org/copter/docs/parameters.html#rc-override-time
 def centerThrottle():
 	global centerTheThrottle
+	global ch1Override
+	global ch2Override
+	global ch3Override
+	global ch4Override
 
-	setChannells(ch3 = 1500)
-
+	ch3Override = 1500
+	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 	centerTheThrottle = True
-
 	
-#remove channel overrides
-def releaseSticks():
+#remove throttle overrides
+def releaseThrottle():
 	global centerTheThrottle
+	global ch1Override
+	global ch2Override
+	global ch3Override
+	global ch4Override
 
-	setChannells()
+	ch3Override = 0
+	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 	centerTheThrottle = False
+	
 
 	
 
