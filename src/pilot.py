@@ -464,7 +464,7 @@ async def disarm(data):
 
 
 #helper for guided commands
-async def guided(data):
+async def guided():
 
 	global the_connection
 	global log
@@ -515,7 +515,7 @@ async def takeoff(data):
 
 		try:
 			await arm(data)
-			await guided(data)
+			await guided()
 		except:
 			traceback.print_exc()
 
@@ -569,7 +569,7 @@ async def land(data):
 		log.info("LAND")
 
 		try:
-			await guided(data)
+			await guided()
 		except:
 			traceback.print_exc()
 			
@@ -742,7 +742,7 @@ async def auto(data):
 		
 
 #helper for set position
-async def reposition(data):
+async def reposition(adjHeading = True):
 
 	global the_connection
 	global operatingAlt
@@ -752,10 +752,14 @@ async def reposition(data):
 	global log
 	global globalPos
 	
-	brg = get_bearing(globalPos.lat / 10 ** 7, globalPos.lon / 10 ** 7, float(requestedLat), float(requestedLon))
+	if adjHeading:
+		brg = get_bearing(globalPos.lat / 10 ** 7, globalPos.lon / 10 ** 7,
+			float(requestedLat), float(requestedLon))
+	else:
+		brg = -1
 
 	try:
-		await guided(data)
+		await guided()
 	except:
 		traceback.print_exc()
 
@@ -770,7 +774,9 @@ async def reposition(data):
 				int(0b110111111000),
 				int(float(requestedLat) * 10 ** 7),
 				int(float(requestedLon) * 10 ** 7),
-				float(operatingAlt), 0, 0, 0, 0, 0, 0, brg, 0.5))
+				float(operatingAlt), 0, 0, 0, 0, 0, 0,
+				brg,
+				0.5))
 
 		msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
 		log.info(f"SET POSITION ACK:  {msg}")
@@ -785,7 +791,6 @@ async def reposition(data):
 
 	releaseThrottle()
 
-	
 async def goto(data):
 
 	global requestedLat
@@ -811,7 +816,7 @@ async def goto(data):
 				lon = i['value']
 				requestedLon = lon
 
-		await reposition(data)
+		await reposition()
 
 		#cancel resume
 		savedLat = None
@@ -845,7 +850,7 @@ async def resume(data):
 			requestedLat = savedLat
 			requestedLon = savedLon
 
-			await reposition(data)
+			await reposition()
 
 			#cancel resume
 			savedLat = None
@@ -984,8 +989,30 @@ async def setToCurrAlt(data):
 	finally:
 		unlockV()
 
-	
 async def changeAlt(relAlt):
+
+	global requestedLat
+	global requestedLon
+	global globalPos
+
+	if requestedLat == None or requestedLon == None:
+		try:
+			requestedLat = globalPos.lat / 10 ** 7
+			requestedLon = globalPos.lon / 10 ** 7
+			await reposition(adjHeading = False)
+		except:
+			traceback.print_exc()
+		finally:
+			requestedLat = None
+			requestedLon = None
+	else:
+		try:
+			await reposition()
+		except:
+			traceback.print_exc()
+
+#not supported by AP yet
+async def __changeAlt(relAlt):
 
 	global the_connection
 	global operatingAlt
@@ -993,6 +1020,8 @@ async def changeAlt(relAlt):
 	#wont work in LOITER mode
 	try:
 
+
+		#not supported by AP yet
 		the_connection.mav.command_long_send(
 			the_connection.target_system, the_connection.target_component,
 			mavutil.mavlink.MAV_CMD_DO_CHANGE_ALTITUDE,
