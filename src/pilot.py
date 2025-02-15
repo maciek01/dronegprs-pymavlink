@@ -11,7 +11,6 @@ import math
 import threading
 
 
-
 current_milli_time = lambda: int(time.time() * 1000)
 
 operatingAlt = 100
@@ -25,6 +24,8 @@ savedLon = None
 URL = None
 BAUD = None
 log = None
+cmdLRReversed = False
+cmdBFReversed = False
 
 #monitoring and controlling tasks
 
@@ -348,7 +349,7 @@ def pilotMonitor():
 
 ###################### INIT HANDLER ############################################
 	
-async def pilotinit(_log, url, baud):
+async def pilotinit(_log, url, baud, _cmdLRReversed, _cmdBFReversed):
 	global URL
 	global BAUD
 	global telem_thread
@@ -357,11 +358,14 @@ async def pilotinit(_log, url, baud):
 	global task
 	global pilot_on
 	global pilot_thread
+	global cmdLRReversed
+	global cmdBFReversed
 
 	log = _log
-
 	URL = url
 	BAUD = baud
+	cmdLRReversed = _cmdLRReversed
+	cmdBFReversed = _cmdBFReversed
 
 	pilot_on = True
 	pilot_thread = threading.Thread(target=pilotMonitor, args=())
@@ -1160,10 +1164,15 @@ async def moveLeft(data):
 	global ch2Override
 	global ch3Override
 	global ch4Override
+	global cmdLRReversed
 	
 	log.info("MVLEFT")
 	
-	ch1Override = 1300
+	if cmdLRReversed:
+		ch1Override = 1700
+	else:
+		ch1Override = 1300
+
 	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 	await asyncio.sleep(0.5)
 	ch1Override = 0
@@ -1177,10 +1186,15 @@ async def moveRight(data):
 	global ch2Override
 	global ch3Override
 	global ch4Override
+	global cmdLRReversed
 
 	log.info("MVRIGHT")
 	
-	ch1Override = 1700
+	if cmdLRReversed:
+		ch1Override = 1300
+	else:
+		ch1Override = 1700
+
 	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 	await asyncio.sleep(0.5)
 	ch1Override = 0
@@ -1194,10 +1208,15 @@ async def moveForward(data):
 	global ch2Override
 	global ch3Override
 	global ch4Override
+	global cmdBFReversed
 
 	log.info("MVFWD")
-	
-	ch2Override = 1300
+
+	if cmdBFReversed:
+		ch2Override = 1700
+	else:
+		ch2Override = 1300
+
 	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 	await asyncio.sleep(0.5)
 	ch2Override = 0
@@ -1211,10 +1230,14 @@ async def moveBack(data):
 	global ch2Override
 	global ch3Override
 	global ch4Override
+	global cmdBFReversed
 
 	log.info("MVBCK")
-	
-	ch2Override = 1700
+
+	if cmdBFReversed:
+		ch2Override = 1300
+	else:
+		ch2Override = 1700
 	setChannells(ch1 = ch1Override, ch2 = ch2Override, ch3 = ch3Override, ch4 = ch4Override)
 	await asyncio.sleep(0.5)
 	ch2Override = 0

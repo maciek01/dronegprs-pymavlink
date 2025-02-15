@@ -34,6 +34,8 @@ gpsPort = None
 unitID = None
 videoChannel = None
 mavlinkPort = None
+cmdLRReversed = False
+cmdBFReversed = False
 
 log = None
 
@@ -274,6 +276,8 @@ async def run():
 	global gpsPort
 	global unitID
 	global videoChannel
+	global cmdLRReversed
+	global cmdBFReversed
 	global mavlinkPort
 	global log
 
@@ -305,6 +309,8 @@ async def run():
 	unitID = config.get('main', 'unitID')
 	unitID = unitID if unitID != "" else "uav0"
 	videoChannel = subst(config.get('main', 'videoChannel'))
+	cmdLRReversed = config.get('main', 'cmdLRReversed')
+	cmdBFReversed = config.get('main', 'cmdBFReversed')
 	mavlinkPort = subst(config.get('main', 'mavlinkPort'))
 	mavlinkBaud = subst(config.get('main', 'mavlinkBaud'))
 	gpsPort = subst(config.get('main', 'gpsPort'))
@@ -325,10 +331,14 @@ async def run():
 	uri = uri if uri != "" else "/uavserver/v1/heartbeat"
 	host = host if host != "" else "http://home.kolesnik.org:8000"
 	url = host + uri
+	cmdLRReversed = True if cmdLRReversed == "true" else False
+	cmdBFReversed = True if cmdBFReversed == "true" else False
 
 	log.info("CONFIGURATION:")
 	log.info(" unitID:" + unitID)
 	log.info(" videoChannel:" + videoChannel)
+	log.info(" cmdLRReversed:" + str(cmdLRReversed))
+	log.info(" cmdBFReversed:" + str(cmdBFReversed))
 	log.info(" url:" + url)
 	log.info(" mavlinkPort:" + mavlinkPort)
 	log.info(" mavlinkBaud:" + mavlinkBaud)
@@ -368,7 +378,7 @@ async def run():
 	#initialize pilot
 	if mavlinkPort != "":
 		log.info("STARTING PILOT MODULE AT " + mavlinkPort)
-		await pilot.pilotinit(log, mavlinkPort, int(mavlinkBaud))
+		await pilot.pilotinit(log, mavlinkPort, int(mavlinkBaud), cmdLRReversed, cmdBFReversed)
 
 	#initialize gps
 	if gpsPort != "":
