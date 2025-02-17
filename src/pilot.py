@@ -117,14 +117,9 @@ def setMessageFrequency(message_id, frequency):
 def controlMonitor():
 
 	global centerTheThrottle
-	global the_connection
+	global control_on
 
-	# Wait for the first heartbeat
-	#   This sets the system and component ID of remote system for the link
-	#the_connection.wait_heartbeat()
-	#log.info("Heartbeat from system (system %u component %u)" %
-	#	(the_connection.target_system, the_connection.target_component))
-
+	centerTheThrottle = False
 	while control_on:
 		time.sleep(1)
 		if centerTheThrottle:
@@ -153,12 +148,6 @@ def telemMonitor():
 	global fix_type_text
 
 
-	# Wait for the first heartbeat
-	#   This sets the system and component ID of remote system for the link
-	#the_connection.wait_heartbeat()
-	#log.info("Heartbeat from system (system %u component %u)" %
-	#	(the_connection.target_system, the_connection.target_component))
-
 	log.info("CONNECTING TELEMETRY")
 	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HOME_POSITION, 5000000)
 	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_GPS_RAW_INT, 1000000)
@@ -182,7 +171,6 @@ def telemMonitor():
 			statustext = the_connection.recv_match(type='STATUSTEXT', blocking=False)
 			sysstatus = the_connection.recv_match(type='SYS_STATUS', blocking=False)
 			heartbeat = the_connection.recv_match(type='HEARTBEAT', blocking=False)
-
 
 		except Exception as e:
 			log.info("error in monitor receive", e)
@@ -237,9 +225,11 @@ def getMessage(msg):
 ########################### THREAD HELPERS #####################################
 
 def lockV():
+	global vehicleLock
 	vehicleLock.acquire()
 
 def unlockV():
+	global vehicleLock
 	vehicleLock.release()
 
 def initVehicle():
@@ -260,26 +250,26 @@ def initVehicle():
 				telem_on = False
 				telem_thread.join()
 				telem_thread = None
+				log.info("TELEM THREAD JOINED")
 			except:
 				log.info("ERROR WHEN CANCELLING A TELEM TASK")
-
-
-			#close conn
-			try:
-				the_connection = None
-			except Exception as inst:
-				the_connection = None
 
 		if control_thread != None:
 			try:
 				control_on = False
 				control_thread.join()
 				control_thread = None
+				log.info("CONTROL THREAD JOINED")
 			except:
 				log.info("ERROR WHEN CANCELLING A CONTROL TASK")
 
-		#open conn
+		#close conn
+		try:
+			the_connection = None
+		except Exception as inst:
+			the_connection = None
 
+		#open conn
 		while the_connection == None:
 			try:
 				# Init the drone
@@ -301,6 +291,17 @@ def initVehicle():
 
 
 		#register listeners
+
+		telem_on = True
+		telem_thread = threading.Thread(target=telemMonitor, args=())
+		telem_thread.daemon = True
+		telem_thread.start()
+
+
+		control_on = True
+		control_thread = threading.Thread(target=controlMonitor, args=())
+		control_thread.daemon = True
+		control_thread.start()
 
 
 	finally:
@@ -325,16 +326,19 @@ def pilotMonitor():
 
 	initVehicle()
 
-	telem_on = True
-	telem_thread = threading.Thread(target=telemMonitor, args=())
-	telem_thread.daemon = True
-	telem_thread.start()
 
 
-	control_on = True
-	control_thread = threading.Thread(target=controlMonitor, args=())
-	control_thread.daemon = True
-	control_thread.start()
+#	telem_on = True
+#	telem_thread = threading.Thread(target=telemMonitor, args=())
+#	telem_thread.daemon = True
+#	telem_thread.start()
+
+
+#	control_on = True
+#	control_thread = threading.Thread(target=controlMonitor, args=())
+#	control_thread.daemon = True
+#	control_thread.start()
+
 
 	#read loop
 
@@ -342,6 +346,14 @@ def pilotMonitor():
 		try:
 			time.sleep(1)
 			#check if the_connection is still alive
+
+
+			#todo: check if the connection is still alive - look for heartbeat last time
+			#if old - reinit: break the thread loops and reinit
+			if the_connection.time_since('HEARTBEAT') > 10:
+				log.info("!!! HEARTBEAT OLD - REINIT VEH")
+				initVehicle()
+
 		except Exception as inst:
 			#traceback.print_exc()
 			initVehicle()
