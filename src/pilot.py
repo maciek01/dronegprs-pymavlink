@@ -159,6 +159,7 @@ def telemMonitor():
 	#log.info("Heartbeat from system (system %u component %u)" %
 	#	(the_connection.target_system, the_connection.target_component))
 
+	log.info("CONNECTING TELEMETRY")
 	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HOME_POSITION, 5000000)
 	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_GPS_RAW_INT, 1000000)
 	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT, 1000000)
@@ -167,7 +168,7 @@ def telemMonitor():
 	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, 1000000)
 	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS, 1000000)
 	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HEARTBEAT, 1000000)
-
+	log.info("TELEMETRY CONNECTED")
 
 	while telem_on:
 		try:
