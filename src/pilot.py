@@ -48,6 +48,7 @@ pilot_thread = None
 the_connection = None
 #messages
 gpsRaw = None
+gps2Raw = None
 globalPos = None
 home = None
 battery = None
@@ -61,6 +62,7 @@ armedStatus	= None
 flightMode = None
 #mavPosition = None
 fixType = None
+fix2Type = None
 
 
 #controls
@@ -107,12 +109,13 @@ def setMessageFrequency(message_id, frequency):
 	the_connection.mav.send(message)
 
 	# Wait for a response (blocking) to the MAV_CMD_SET_MESSAGE_INTERVAL command and print result
-	response = the_connection.recv_match(type='COMMAND_ACK', blocking=True)
+	response = the_connection.recv_match(type='COMMAND_ACK', blocking=False)
 	if response and response.command == mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL and response.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
 		log.info("Command accepted for message ID %d with frequency %d microseconds" % (message_id, frequency))
+		return True
 	else:
 		log.info("Command failed for message ID %d" % message_id)
-
+		return False
 
 def controlMonitor():
 
@@ -133,6 +136,7 @@ def telemMonitor():
 
 	global the_connection
 	global gpsRaw
+	global gps2Raw
 	global globalPos
 	global home
 	global battery
@@ -145,25 +149,36 @@ def telemMonitor():
 	global armedStatus
 	#global mavPosition
 	global fixType
+	global fix2Type
 	global fix_type_text
 
 
 	log.info("CONNECTING TELEMETRY")
-	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HOME_POSITION, 5000000)
-	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_GPS_RAW_INT, 1000000)
-	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT, 1000000)
-	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_BATTERY_STATUS, 5000000)
-	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_RANGEFINDER, 1000000)
-	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, 1000000)
-	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS, 1000000)
-	setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HEARTBEAT, 1000000)
+	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HOME_POSITION, 5000000):
+		time.sleep(1)
+	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_GPS_RAW_INT, 1000000):
+		time.sleep(1)
+	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_GPS2_RAW, 1000000):
+		time.sleep(1)
+	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT, 1000000):
+		time.sleep(1)
+	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_BATTERY_STATUS, 5000000):
+		time.sleep(1)
+	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_RANGEFINDER, 1000000):
+		time.sleep(1)
+	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, 1000000):
+		time.sleep(1)
+	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS, 1000000):
+		time.sleep(1)
+	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HEARTBEAT, 1000000):
+		time.sleep(1)
 	log.info("TELEMETRY CONNECTED")
 
 	while telem_on:
 		try:
 			time.sleep(1)
-			#print("Waiting for telem")
 			gpsRaw = the_connection.recv_match(type='GPS_RAW_INT', blocking=False)
+			gps2Raw = the_connection.recv_match(type='GPS_RAW_INT', blocking=False)
 			globalPos = the_connection.recv_match(type='GLOBAL_POSITION_INT', blocking=False)
 			battery = the_connection.recv_match(type='BATTERY_STATUS', blocking=False)
 			home = the_connection.recv_match(type='HOME_POSITION', blocking=False)
@@ -193,6 +208,9 @@ def telemMonitor():
 				globalPos = getMessage('GLOBAL_POSITION_INT')
 			if gpsRaw is None:
 				gpsRaw = getMessage('GPS_RAW_INT')
+			if gps2Raw is None:
+				gps2Raw = getMessage('GPS2_RAW')
+
 
 			#calculated telem state
 
@@ -206,6 +224,10 @@ def telemMonitor():
 			#mavPosition = the_connection.location()
 			fixType = fix_type_text.get(
 				gpsRaw.fix_type if gpsRaw != None else -1,
+				"Unknown"
+				)
+			fixType2 = fix_type_text.get(
+				gps2Raw.fix_type if gps2Raw != None else -1,
 				"Unknown"
 				)
 
