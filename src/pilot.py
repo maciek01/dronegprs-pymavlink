@@ -372,7 +372,7 @@ def pilotMonitor():
 
 			#todo: check if the connection is still alive - look for heartbeat last time
 			#if old - reinit: break the thread loops and reinit
-			if the_connection.time_since('HEARTBEAT') > 10:
+			if the_connection.time_since('HEARTBEAT') > 30:
 				log.info("!!! HEARTBEAT OLD - REINIT VEH")
 				initVehicle()
 
