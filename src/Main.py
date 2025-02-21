@@ -167,7 +167,7 @@ def reportPilotData():
 		"gpsVError" : gps1.epv if gps1 != None else None,
 
 		"gps2NumSats" : gps2.satellites_visible if gps2 != None else None,
-		"gps2Lock" : pilot.fixType,
+		"gps2Lock" : pilot.fix2Type,
 		"gps2HError" : gps2.eph if gps2 != None else None,
 		"gps2VError" : gps2.epv if gps2 != None else None,
 
