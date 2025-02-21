@@ -5,6 +5,9 @@ import requests
 import time
 import json
 import socket
+import threading
+import signal
+import os
 import sys
 import traceback
 import gps, pilot, modem, video_manager
@@ -443,7 +446,25 @@ async def run():
 					log.error("FAILSAFE cleared")
 					fs_http_triggered = False
 
+
+def signal_handler(sig, frame):
+	print(f"Signal {sig} received. Performing threaddump...")
+	# Add cleanup operations here, e.g., closing files, releasing resources
+
+	stacktrace = ""
+	for th in threading.enumerate():
+		stacktrace += str(th)
+		stacktrace += "".join(traceback.format_stack(sys._current_frames()[th.ident]))
+
+	print (stacktrace)
+
+
+
 #main
 if __name__ == '__main__':
+
+	# Register the signal handler for SIGQUIT
+	signal.signal(signal.SIGQUIT, signal_handler)
+
 	asyncio.run(run())
 
