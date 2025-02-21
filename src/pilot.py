@@ -226,7 +226,7 @@ def telemMonitor():
 				gpsRaw.fix_type if gpsRaw != None else -1,
 				"Unknown"
 				)
-			fixType2 = fix_type_text.get(
+			fix2Type = fix_type_text.get(
 				gps2Raw.fix_type if gps2Raw != None else -1,
 				"Unknown"
 				)
