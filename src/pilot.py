@@ -166,8 +166,8 @@ def telemMonitor():
 		time.sleep(1)
 	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_RANGEFINDER, 1000000):
 		time.sleep(1)
-	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, 1000000):
-		time.sleep(1)
+	#while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, 1000000):
+	#	time.sleep(1)
 	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS, 1000000):
 		time.sleep(1)
 	while not setMessageFrequency(mavutil.mavlink.MAVLINK_MSG_ID_HEARTBEAT, 1000000):
