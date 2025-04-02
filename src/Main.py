@@ -35,6 +35,7 @@ HTTP_TIMEOUT = 5
 
 gpsPort = None
 unitID = None
+type=None
 videoChannel = None
 mavlinkPort = None
 cmdLRReversed = False
@@ -97,6 +98,7 @@ def reportGPSData():
 #this is for mission control mode if enabled
 def reportPilotData():
 	global unitID
+	global type
 	global videoChannel
 	global mavlinkPort
 
@@ -130,6 +132,7 @@ def reportPilotData():
 	data = {
 		#1s reporting
 		"unitId" : unitID,
+		"type" : type,
 		"videoChannel" : videoChannel,
 
 		"stateTimestampMS" : pilot.current_milli_time(),
@@ -212,6 +215,7 @@ async def sendHeartbeat(log, unitID, videoChannel, http, url, headers):
 
 	content = None
 	global good_heartbeat
+	global type
 
 	try:
 		gpsData = reportGPSData()
@@ -233,6 +237,7 @@ async def sendHeartbeat(log, unitID, videoChannel, http, url, headers):
 			data = {
 				#1s reporting
 				"unitId" : unitID,
+				"type" : type,
 				"videoChannel" : videoChannel,
 				"videostat" : "ON" if video_manager.process != None else "OFF",
 
@@ -284,6 +289,7 @@ async def run():
 	global HTTP_TIMEOUT
 	global gpsPort
 	global unitID
+	global type
 	global videoChannel
 	global cmdLRReversed
 	global cmdBFReversed
@@ -317,6 +323,7 @@ async def run():
 	HOST = HOST if HOST != "" else "home.kolesnik.org"
 	unitID = config.get('main', 'unitID')
 	unitID = unitID if unitID != "" else "uav0"
+	type = config.get('main', 'type')
 	videoChannel = subst(config.get('main', 'videoChannel'))
 	cmdLRReversed = config.get('main', 'cmdLRReversed')
 	cmdBFReversed = config.get('main', 'cmdBFReversed')
@@ -337,6 +344,7 @@ async def run():
 
 	dbfile = dbfile if dbfile != "" else "/home/pi/uavonboard.db"
 	unitID = unitID if unitID != "" else "uav0"
+	type = type if type != "" else "quad"
 	uri = uri if uri != "" else "/uavserver/v1/heartbeat"
 	host = host if host != "" else "http://home.kolesnik.org:8000"
 	url = host + uri
@@ -345,6 +353,7 @@ async def run():
 
 	log.info("CONFIGURATION:")
 	log.info(" unitID:" + unitID)
+	log.info(" type:" + type)
 	log.info(" videoChannel:" + videoChannel)
 	log.info(" cmdLRReversed:" + str(cmdLRReversed))
 	log.info(" cmdBFReversed:" + str(cmdBFReversed))
