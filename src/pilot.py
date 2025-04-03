@@ -23,6 +23,7 @@ savedLon = None
 
 URL = None
 BAUD = None
+TYPE = None
 log = None
 cmdLRReversed = False
 cmdBFReversed = False
@@ -384,9 +385,10 @@ def pilotMonitor():
 
 ###################### INIT HANDLER ############################################
 	
-async def pilotinit(_log, url, baud, _cmdLRReversed, _cmdBFReversed):
+async def pilotinit(_log, url, baud, type, _cmdLRReversed, _cmdBFReversed):
 	global URL
 	global BAUD
+	global TYPE
 	global telem_thread
 	global telem_on
 	global log
@@ -398,6 +400,7 @@ async def pilotinit(_log, url, baud, _cmdLRReversed, _cmdBFReversed):
 
 	log = _log
 	URL = url
+	TYPE = type
 	BAUD = baud
 	cmdLRReversed = _cmdLRReversed
 	cmdBFReversed = _cmdBFReversed
@@ -540,6 +543,7 @@ async def takeoff(data):
 
 	global the_connection
 	global log
+	global TYPE
 	global operatingAlt
 	global armed
 	global savedLat
@@ -572,7 +576,7 @@ async def takeoff(data):
 		try:
 			the_connection.mav.command_long_send(
 				the_connection.target_system, the_connection.target_component,
-				mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+				mavutil.mavlink.MAV_CMD_NAV_VTOL_TAKEOFF if TYPE == "vtol" else mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
 				0, takeoff_params[0], takeoff_params[1], takeoff_params[2], takeoff_params[3],
 				takeoff_params[4], takeoff_params[5], takeoff_params[6])
 			
@@ -602,6 +606,7 @@ async def land(data):
 	global savedLat
 	global savedLon
 	global log
+	global TYPE
 	
 	lockV()
 	try:
@@ -615,7 +620,7 @@ async def land(data):
 		try:
 			the_connection.mav.command_long_send(
 				the_connection.target_system, the_connection.target_component,
-				mavutil.mavlink.MAV_CMD_NAV_LAND, 
+				mavutil.mavlink.MAV_CMD_NAV_VTOL_LAND if TYPE == "vtol" else mavutil.mavlink.MAV_CMD_NAV_LAND, 
 				0, 0, 0, 0, 0, 0, 0, 0)
 			
 			msg = the_connection.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
@@ -700,13 +705,16 @@ async def position(data):
 	return await holdInMode("POSHOLD", "POSHOLD")
 
 async def loiter(data):
-	return await holdInMode("LOITER", "LOITER")
+	global TYPE
+	return await holdInMode("QLOITER" if TYPE == "vtol" else "LOITER", "LOITER")
 
 async def pause(data):
-	return await holdInMode("LOITER", "PAUSE")
+	global TYPE
+	return await holdInMode("QLOITER" if TYPE == "vtol" else "LOITER", "PAUSE")
 
 async def manual(data):
-	return await holdInMode("LOITER", "MANUAL", False)
+	global TYPE
+	return await holdInMode("QLOITER" if TYPE == "vtol" else "LOITER", "MANUAL", False)
 
 
 async def rtl(data):

@@ -396,7 +396,7 @@ async def run():
 	#initialize pilot
 	if mavlinkPort != "":
 		log.info("STARTING PILOT MODULE AT " + mavlinkPort)
-		await pilot.pilotinit(log, mavlinkPort, int(mavlinkBaud), cmdLRReversed, cmdBFReversed)
+		await pilot.pilotinit(log, mavlinkPort, int(mavlinkBaud), type, cmdLRReversed, cmdBFReversed)
 
 	#initialize gps
 	if gpsPort != "":
